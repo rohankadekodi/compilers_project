@@ -53,13 +53,14 @@ void kernel_sizing(dim3& blocks, dim3& threads) {
 
 template <typename DataType>
 __global__ void batch_get_subset(index_type subset_size,
+				 index_type subset_start,
                                  const unsigned int* __restrict__ indices,
                                  DataType* __restrict__ subset,
                                  const DataType* __restrict__ array) {
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
-  for (index_type src = 0 + tid; src < src_end; src += nthreads) {
+  for (index_type src = subset_start + tid; src < src_end; src += nthreads) {
     unsigned index = indices[src];
     subset[src]    = array[index];
   }
@@ -67,6 +68,7 @@ __global__ void batch_get_subset(index_type subset_size,
 
 template <typename DataType, typename OffsetIteratorType>
 __global__ void batch_get_subset(index_type subset_size,
+				 index_type subset_start,
                                  const unsigned int* __restrict__ indices,
                                  const OffsetIteratorType offsets,
                                  DataType* __restrict__ subset,
@@ -74,7 +76,7 @@ __global__ void batch_get_subset(index_type subset_size,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
-  for (index_type src = 0 + tid; src < src_end; src += nthreads) {
+  for (index_type src = subset_start + tid; src < src_end; src += nthreads) {
     unsigned index = indices[offsets[src]];
     subset[src]    = array[index];
   }
@@ -82,6 +84,7 @@ __global__ void batch_get_subset(index_type subset_size,
 
 template <typename DataType>
 __global__ void batch_get_reset_subset(index_type subset_size,
+				       index_type subset_start,
                                        const unsigned int* __restrict__ indices,
                                        DataType* __restrict__ subset,
                                        DataType* __restrict__ array,
@@ -89,7 +92,7 @@ __global__ void batch_get_reset_subset(index_type subset_size,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
-  for (index_type src = 0 + tid; src < src_end; src += nthreads) {
+  for (index_type src = subset_start + tid; src < src_end; src += nthreads) {
     unsigned index = indices[src];
     subset[src]    = array[index];
     array[index]   = reset_value;
@@ -98,6 +101,7 @@ __global__ void batch_get_reset_subset(index_type subset_size,
 
 template <typename DataType, typename OffsetIteratorType>
 __global__ void batch_get_reset_subset(index_type subset_size,
+				       index_type subset_start,
                                        const unsigned int* __restrict__ indices,
                                        const OffsetIteratorType offsets,
                                        DataType* __restrict__ subset,
@@ -106,7 +110,7 @@ __global__ void batch_get_reset_subset(index_type subset_size,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
-  for (index_type src = 0 + tid; src < src_end; src += nthreads) {
+  for (index_type src = subset_start + tid; src < src_end; src += nthreads) {
     unsigned index = indices[offsets[src]];
     subset[src]    = array[index];
     array[index]   = reset_value;
@@ -456,7 +460,7 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
         field->data.gpu_wr_ptr(), i);
   } else {
     batch_get_subset<DataType><<<blocks, threads>>>(
-        v_size, shared->nodes[from_id].device_ptr(), shared_data->device_ptr(),
+						    v_size, 0, shared->nodes[from_id].device_ptr(), shared_data->device_ptr(),
         field->data.gpu_rd_ptr());
   }
   check_cuda_kernel;
@@ -475,7 +479,7 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 }
 
 template <typename DataType>
-void serializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
+size_t serializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
                       size_t bit_set_count, size_t num_shared,
                       DeviceOnly<DataType>* shared_data, uint8_t* send_buffer) {
   if (data_mode == noData) {
@@ -515,7 +519,9 @@ void serializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
   // serialize data vector
   memcpy(send_buffer + offset, &bit_set_count, sizeof(bit_set_count));
   offset += sizeof(bit_set_count);
-  shared_data->copy_to_cpu((DataType*)(send_buffer + offset), bit_set_count);
+
+  return offset;
+
   //offset += bit_set_count * sizeof(DataType);
 }
 
@@ -534,6 +540,8 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   DeviceOnly<DataType>* shared_data = &field->shared_data;
   dim3 blocks;
   dim3 threads;
+  size_t mini_vsize = *v_size / 4;
+  size_t iter = 0;
   kernel_sizing(blocks, threads);
 
   // ggc::Timer timer("timer"), timer1("timer1"), timer2("timer2"),
@@ -553,36 +561,48 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
                             ctx->is_updated.gpu_rd_ptr(), v_size);
     // timer2.stop();
   }
+  
   *data_mode = get_data_mode<DataType>(*v_size, shared->num_nodes[from_id]);
   // timer3.start();
-  if ((*data_mode) == onlyData) {
-    *v_size = shared->num_nodes[from_id];
-    if (reset) {
-      batch_get_reset_subset<DataType><<<blocks, threads>>>(
-          *v_size, shared->nodes[from_id].device_ptr(),
-          shared_data->device_ptr(), field->data.gpu_wr_ptr(), i);
-    } else {
-      batch_get_subset<DataType><<<blocks, threads>>>(
-          *v_size, shared->nodes[from_id].device_ptr(),
-          shared_data->device_ptr(), field->data.gpu_rd_ptr());
-    }
-  } else { // bitsetData || offsetsData
-    if (reset) {
-      batch_get_reset_subset<DataType><<<blocks, threads>>>(
-          *v_size, shared->nodes[from_id].device_ptr(),
-          ctx->offsets.device_ptr(), shared_data->device_ptr(),
-          field->data.gpu_wr_ptr(), i);
-    } else {
-      batch_get_subset<DataType><<<blocks, threads>>>(
-          *v_size, shared->nodes[from_id].device_ptr(),
-          ctx->offsets.device_ptr(), shared_data->device_ptr(),
-          field->data.gpu_rd_ptr());
-    }
+  size_t offset = serializeMessage(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
+
+  for (iter = 0; iter < *v_size; iter += mini_vsize) {
+	  size_t end = (iter + mini_vsize > *v_size) ? (*v_size) : (iter + mini_vsize);
+	  if ((*data_mode) == onlyData) {
+		  *v_size = shared->num_nodes[from_id];
+		  if (reset) {
+			  batch_get_reset_subset<DataType><<<blocks, threads>>>(
+										end, iter, shared->nodes[from_id].device_ptr(),
+										shared_data->device_ptr(), field->data.gpu_wr_ptr(), i);
+		  } else {
+			  batch_get_subset<DataType><<<blocks, threads>>>(
+									  end, iter, shared->nodes[from_id].device_ptr(),
+									  shared_data->device_ptr(), field->data.gpu_rd_ptr());
+		  }
+	  } else { // bitsetData || offsetsData
+		  if (reset) {
+			  batch_get_reset_subset<DataType><<<blocks, threads>>>(
+										end, iter, shared->nodes[from_id].device_ptr(),
+										ctx->offsets.device_ptr(), shared_data->device_ptr(),
+										field->data.gpu_wr_ptr(), i);
+		  } else {
+			  batch_get_subset<DataType><<<blocks, threads>>>(
+									  end, iter, shared->nodes[from_id].device_ptr(),
+									  ctx->offsets.device_ptr(), shared_data->device_ptr(),
+									  field->data.gpu_rd_ptr());
+		  }
+	  }
   }
+
+  for (iter = 0; iter < *v_size; iter += mini_vsize) {
+	  size_t size_to_copy = (iter + mini_vsize > *v_size) ? *v_size - iter + 1 : mini_vsize;
+	  shared_data->async_copy_to_cpu((DataType*)(send_buffer + offset), size_to_copy);
+	  offset = offset + mini_vsize;
+  }
+
   check_cuda_kernel;
   // timer3.stop();
   // timer4.start();
-  serializeMessage(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
   // timer4.stop();
   // timer.stop();
   // fprintf(stderr, "Get %u->%u: %d mode %u bitset %u indices. Time (ms): %llu

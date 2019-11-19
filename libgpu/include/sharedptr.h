@@ -265,6 +265,16 @@ public:
         cudaMemcpy(cpu_ptr, ptr, nuseb * sizeof(T), cudaMemcpyDeviceToHost));
   }
 
+  void async_copy_to_cpu(T* cpu_ptr, size_t nuseb) {
+    if (ptr == NULL)
+      return;
+    assert(cpu_ptr != NULL);
+    assert(nuseb <= nmemb);
+    CUDA_SAFE_CALL(
+        cudaMemcpyAsync(cpu_ptr, ptr, nuseb * sizeof(T), cudaMemcpyDeviceToHost));
+  }
+
+  
   __device__ __host__ T* device_ptr() {
 #ifdef __CUDA_ARCH__
     return ptr; // TODO: this is invalid beyond one gpu device!
