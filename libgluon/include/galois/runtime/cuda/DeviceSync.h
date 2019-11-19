@@ -475,6 +475,54 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 }
 
 template <typename DataType>
+void gpuDirectSend(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
+                      size_t bit_set_count, size_t num_shared,
+                      DeviceOnly<DataType>* shared_data, uint8_t* send_buffer) {
+  if (data_mode == noData) {
+    // do nothing
+    return;
+  }
+
+  size_t offset = 0;
+
+  // serialize data_mode
+  memcpy(send_buffer, &data_mode, sizeof(data_mode));
+  offset += sizeof(data_mode);
+
+  if (data_mode != onlyData) {
+    // serialize bit_set_count
+    memcpy(send_buffer + offset, &bit_set_count, sizeof(bit_set_count));
+    offset += sizeof(bit_set_count);
+  }
+
+  if ((data_mode == gidsData) || (data_mode == offsetsData)) {
+    // serialize offsets vector
+    //memcpy(send_buffer + offset, &bit_set_count, sizeof(bit_set_count));
+    //offset += sizeof(bit_set_count);	  
+    //ctx->offsets.copy_to_cpu((unsigned int*)(send_buffer + offset), bit_set_count);
+    MPI_Send(ctx->offsets, bit_set_count, MPI_CHAR, 1, 100, MPI_COMM_WORLD);
+    //offset += bit_set_count * sizeof(unsigned int);
+  } else if ((data_mode == bitsetData)) {
+    // serialize bitset
+    //memcpy(send_buffer + offset, &num_shared, sizeof(num_shared));
+    //offset += sizeof(num_shared);
+    size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
+    //memcpy(send_buffer + offset, &vec_size, sizeof(vec_size));
+    //offset += sizeof(vec_size);
+    MPI_Send(ctx->is_updated.cpu_rd_ptr(), (num_shared+vec_size), MPI_CHAR, 1, 100, MPI_COMM_WORLD);
+    //ctx->is_updated.cpu_rd_ptr()->copy_to_cpu((uint64_t*)(send_buffer + offset));
+    //offset += vec_size * sizeof(uint64_t);
+  }
+
+  // serialize data vector
+  //memcpy(send_buffer + offset, &bit_set_count, sizeof(bit_set_count));
+  //offset += sizeof(bit_set_count);
+  MPI_Send(shared_data, bit_set_count, MPI_CHAR, 1, 100, MPI_COMM_WORLD);
+  //shared_data->copy_to_cpu((DataType*)(send_buffer + offset), bit_set_count);
+  //offset += bit_set_count * sizeof(DataType);
+}
+
+template <typename DataType>
 void serializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
                       size_t bit_set_count, size_t num_shared,
                       DeviceOnly<DataType>* shared_data, uint8_t* send_buffer) {
@@ -582,7 +630,8 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   check_cuda_kernel;
   // timer3.stop();
   // timer4.start();
-  serializeMessage(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
+  //serializeMessage(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
+  gpuDirectSend(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
   // timer4.stop();
   // timer.stop();
   // fprintf(stderr, "Get %u->%u: %d mode %u bitset %u indices. Time (ms): %llu
@@ -591,6 +640,52 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   //  ctx->is_updated.cpu_rd_ptr()->alloc_size(), sizeof(unsigned int) *
   //  (*v_size), timer1.duration_ms(), timer2.duration_ms(),
   //  timer3.duration_ms(), timer4.duration_ms(), timer.duration_ms());
+}
+
+template <typename DataType>
+void gpuDirectRecv(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
+		   size_t& bit_set_count, size_t num_shared,
+		   DeviceOnly<DataType>* shared_data, uint8_t* recv_buffer) {
+  size_t offset = 0; // data_mode is already deserialized
+
+  if (data_mode != onlyData) {
+    // deserialize bit_set_count
+    memcpy(&bit_set_count, recv_buffer + offset, sizeof(bit_set_count));
+    offset += sizeof(bit_set_count);
+  } else {
+    bit_set_count = num_shared;
+  }  
+  
+  assert(data_mode != gidsData); // not supported for deserialization on GPUs
+  if (data_mode == offsetsData) {
+    // deserialize offsets vector
+    //offset += sizeof(bit_set_count);
+    MPI_Recv(ctx->offsets, bit_set_count, MPI_CHAR, 0, 100, MPI_COMM_WORLD, &status);    
+    //ctx->offsets.copy_to_gpu((unsigned int*)(recv_buffer + offset), bit_set_count);
+    //offset += bit_set_count * sizeof(unsigned int);
+  } else if ((data_mode == bitsetData)) {
+    // deserialize bitset
+    ctx->is_updated.cpu_rd_ptr()->resize(num_shared);
+    //offset += sizeof(num_shared);
+    size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
+    //offset += sizeof(vec_size);
+    MPI_Recv(ctx->is_updated.cpu_rd_ptr(), (num_shared + vec_size), MPI_CHAR, 0, 100, MPI_COMM_WORLD, &status);        
+    //ctx->is_updated.cpu_rd_ptr()->copy_to_gpu((uint64_t*)(recv_buffer + offset));
+    //offset += vec_size * sizeof(uint64_t);
+    // get offsets
+    size_t v_size;
+    get_offsets_from_bitset(num_shared,
+                            ctx->offsets.device_ptr(),
+                            ctx->is_updated.gpu_rd_ptr(), &v_size);
+
+    assert(bit_set_count == v_size);
+  }
+
+  // deserialize data vector
+  //offset += sizeof(bit_set_count);
+  MPI_Recv(shared_data, bit_set_count, MPI_CHAR, 0, 100, MPI_COMM_WORLD, &status);        
+  //shared_data->copy_to_gpu((DataType*)(recv_buffer + offset), bit_set_count);
+  //offset += bit_set_count * sizeof(DataType);
 }
 
 template <typename DataType>
@@ -657,7 +752,9 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
   // ggc::Timer timer("timer"), timer1("timer1"), timer2("timer2");
   // timer.start();
   // timer1.start();
-  deserializeMessage(ctx, data_mode, v_size, shared->num_nodes[from_id], shared_data, recv_buffer);
+  //deserializeMessage(ctx, data_mode, v_size, shared->num_nodes[from_id], shared_data, recv_buffer);
+  gpuDirectRecv(ctx, data_mode, v_size, shared->num_nodes[from_id], shared_data, recv_buffer);
+  
   // timer1.stop();
   // timer2.start();
   if (data_mode == onlyData) {

@@ -2694,9 +2694,9 @@ private:
     case noBareMPI:
 #endif
       syncSend<writeLocation, readLocation, syncReduce, ReduceFnTy,
-                BitsetFnTy, async>(loopName);
+	      BitsetFnTy, async>(loopName);
       syncRecv<writeLocation, readLocation, syncReduce, ReduceFnTy,
-                BitsetFnTy, async>(loopName);
+	      BitsetFnTy, async>(loopName);      
 #ifdef __GALOIS_BARE_MPI_COMMUNICATION__
       break;
     case nonBlockingBareMPI:
