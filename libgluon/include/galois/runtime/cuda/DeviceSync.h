@@ -99,6 +99,7 @@ __global__ void batch_get_reset_subset(index_type subset_size,
   }
 }
 
+
 template <typename DataType, typename OffsetIteratorType>
 __global__ void batch_get_reset_subset(index_type subset_size,
 				       index_type subset_start,
@@ -119,6 +120,7 @@ __global__ void batch_get_reset_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType>
 __global__ void batch_set_subset(index_type subset_size,
+				 index_type start,
                                  const unsigned int* __restrict__ indices,
                                  const DataType* __restrict__ subset,
                                  DataType* __restrict__ array,
@@ -126,7 +128,7 @@ __global__ void batch_set_subset(index_type subset_size,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
-  for (index_type src = 0 + tid; src < src_end; src += nthreads) {
+  for (index_type src = start + tid; src < src_end; src += nthreads) {
     unsigned index = indices[src];
     array[index]   = subset[src];
     if (sharedType != sharedMirror) {
@@ -137,6 +139,7 @@ __global__ void batch_set_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType, typename OffsetIteratorType>
 __global__ void batch_set_subset(index_type subset_size,
+				 index_type start,
                                  const unsigned int* __restrict__ indices,
                                  const OffsetIteratorType offsets,
                                  const DataType* __restrict__ subset,
@@ -145,7 +148,7 @@ __global__ void batch_set_subset(index_type subset_size,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
-  for (index_type src = 0 + tid; src < src_end; src += nthreads) {
+  for (index_type src = start + tid; src < src_end; src += nthreads) {
     unsigned index = indices[offsets[src]];
     array[index]   = subset[src];
     if (sharedType != sharedMirror) {
@@ -156,6 +159,7 @@ __global__ void batch_set_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType>
 __global__ void batch_add_subset(index_type subset_size,
+				 index_type start,
                                  const unsigned int* __restrict__ indices,
                                  const DataType* __restrict__ subset,
                                  DataType* __restrict__ array,
@@ -163,7 +167,7 @@ __global__ void batch_add_subset(index_type subset_size,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
-  for (index_type src = 0 + tid; src < src_end; src += nthreads) {
+  for (index_type src = start + tid; src < src_end; src += nthreads) {
     unsigned index = indices[src];
     array[index] += subset[src];
     if (sharedType != sharedMirror) {
@@ -174,7 +178,8 @@ __global__ void batch_add_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType, typename OffsetIteratorType>
 __global__ void batch_add_subset(index_type subset_size,
-                                 const unsigned int* __restrict__ indices,
+				 index_type start,
+				 const unsigned int* __restrict__ indices,
                                  const OffsetIteratorType offsets,
                                  const DataType* __restrict__ subset,
                                  DataType* __restrict__ array,
@@ -182,7 +187,7 @@ __global__ void batch_add_subset(index_type subset_size,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
-  for (index_type src = 0 + tid; src < src_end; src += nthreads) {
+  for (index_type src = start + tid; src < src_end; src += nthreads) {
     unsigned index = indices[offsets[src]];
     array[index] += subset[src];
     if (sharedType != sharedMirror) {
@@ -193,6 +198,7 @@ __global__ void batch_add_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType>
 __global__ void batch_min_subset(index_type subset_size,
+				 index_type start,
                                  const unsigned int* __restrict__ indices,
                                  const DataType* __restrict__ subset,
                                  DataType* __restrict__ array,
@@ -200,7 +206,7 @@ __global__ void batch_min_subset(index_type subset_size,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
-  for (index_type src = 0 + tid; src < src_end; src += nthreads) {
+  for (index_type src = start + tid; src < src_end; src += nthreads) {
     unsigned index = indices[src];
     if (array[index] > subset[src]) {
       array[index] = subset[src];
@@ -213,6 +219,7 @@ __global__ void batch_min_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType, typename OffsetIteratorType>
 __global__ void batch_min_subset(index_type subset_size,
+				 index_type start,
                                  const unsigned int* __restrict__ indices,
                                  const OffsetIteratorType offsets,
                                  const DataType* __restrict__ subset,
@@ -221,7 +228,7 @@ __global__ void batch_min_subset(index_type subset_size,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
-  for (index_type src = 0 + tid; src < src_end; src += nthreads) {
+  for (index_type src = start + tid; src < src_end; src += nthreads) {
     unsigned index = indices[offsets[src]];
     if (array[index] > subset[src]) {
       array[index] = subset[src];
@@ -503,7 +510,6 @@ size_t serializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
     // serialize offsets vector
     memcpy(send_buffer + offset, &bit_set_count, sizeof(bit_set_count));
     offset += sizeof(bit_set_count);
-    ctx->offsets.copy_to_cpu((unsigned int*)(send_buffer + offset), bit_set_count);
     offset += bit_set_count * sizeof(unsigned int);
   } else if ((data_mode == bitsetData)) {
     // serialize bitset
@@ -512,7 +518,6 @@ size_t serializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
     size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
     memcpy(send_buffer + offset, &vec_size, sizeof(vec_size));
     offset += sizeof(vec_size);
-    ctx->is_updated.cpu_rd_ptr()->copy_to_cpu((uint64_t*)(send_buffer + offset));
     offset += vec_size * sizeof(uint64_t);
   }
 
@@ -565,7 +570,7 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   *data_mode = get_data_mode<DataType>(*v_size, shared->num_nodes[from_id]);
   // timer3.start();
   size_t offset = serializeMessage(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
-
+  
   for (iter = 0; iter < *v_size; iter += mini_vsize) {
 	  size_t end = (iter + mini_vsize > *v_size) ? (*v_size) : (iter + mini_vsize);
 	  if ((*data_mode) == onlyData) {
@@ -601,6 +606,25 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   }
 
   check_cuda_kernel;
+
+  offset = sizeof(*data_mode);
+
+  if (*data_mode == noData) {
+	  return;
+  }
+  
+  if ((*data_mode == gidsData) || (*data_mode == offsetsData)) {
+	  offset += sizeof(bit_set_count);
+	  ctx->offsets.copy_to_cpu((unsigned int*)(send_buffer + offset), *v_size);
+	  offset += (*v_size) * sizeof(unsigned int);
+  } else if ((data_mode == bitsetData)) {
+	  offset += sizeof(shared->num_nodes[from_id]);
+	  size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
+	  offset += sizeof(vec_size);
+	  ctx->is_updated.cpu_rd_ptr()->copy_to_cpu((uint64_t*)(send_buffer + offset));
+	  offset += vec_size * sizeof(uint64_t);	  
+  }
+  
   // timer3.stop();
   // timer4.start();
   // timer4.stop();
@@ -614,7 +638,7 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 }
 
 template <typename DataType>
-void deserializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
+size_t deserializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
                       size_t& bit_set_count, size_t num_shared,
                       DeviceOnly<DataType>* shared_data, uint8_t* recv_buffer) {
   size_t offset = 0; // data_mode is already deserialized
@@ -652,7 +676,9 @@ void deserializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
 
   // deserialize data vector
   offset += sizeof(bit_set_count);
-  shared_data->copy_to_gpu((DataType*)(recv_buffer + offset), bit_set_count);
+
+  return offset;
+  //shared_data->copy_to_gpu((DataType*)(recv_buffer + offset), bit_set_count);
   //offset += bit_set_count * sizeof(DataType);
 }
 
@@ -677,58 +703,71 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
   // ggc::Timer timer("timer"), timer1("timer1"), timer2("timer2");
   // timer.start();
   // timer1.start();
-  deserializeMessage(ctx, data_mode, v_size, shared->num_nodes[from_id], shared_data, recv_buffer);
+  size_t offset = deserializeMessage(ctx, data_mode, v_size, shared->num_nodes[from_id], shared_data, recv_buffer);
+
+  size_t mini_vsize = v_size / 4;
+  for (iter = 0; iter < *v_size; iter += mini_vsize) {
+	  size_t size_to_copy = (iter + mini_vsize > *v_size) ? *v_size - iter + 1 : mini_vsize;
+	  shared_data->copy_to_gpu((DataType*)(recv_buffer + offset), bit_set_count);	  
+  }
+  
   // timer1.stop();
   // timer2.start();
-  if (data_mode == onlyData) {
-    if (op == setOp) {
-      batch_set_subset<DataType, sharedType><<<blocks, threads>>>(
-          v_size, shared->nodes[from_id].device_ptr(),
-          shared_data->device_ptr(), field->data.gpu_wr_ptr(),
-          field->is_updated.gpu_wr_ptr());
-    } else if (op == addOp) {
-      batch_add_subset<DataType, sharedType><<<blocks, threads>>>(
-          v_size, shared->nodes[from_id].device_ptr(),
-          shared_data->device_ptr(), field->data.gpu_wr_ptr(),
-          field->is_updated.gpu_wr_ptr());
-    } else if (op == minOp) {
-      batch_min_subset<DataType, sharedType><<<blocks, threads>>>(
-          v_size, shared->nodes[from_id].device_ptr(),
-          shared_data->device_ptr(), field->data.gpu_wr_ptr(),
-          field->is_updated.gpu_wr_ptr());
-    }
-  } else if (data_mode == gidsData) {
-    if (op == setOp) {
-      batch_set_subset<DataType, sharedType><<<blocks, threads>>>(
-          v_size, ctx->offsets.device_ptr(), shared_data->device_ptr(),
-          field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
-    } else if (op == addOp) {
-      batch_add_subset<DataType, sharedType><<<blocks, threads>>>(
-          v_size, ctx->offsets.device_ptr(), shared_data->device_ptr(),
-          field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
-    } else if (op == minOp) {
-      batch_min_subset<DataType, sharedType><<<blocks, threads>>>(
-          v_size, ctx->offsets.device_ptr(), shared_data->device_ptr(),
-          field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
-    }
-  } else { // bitsetData || offsetsData
-    if (op == setOp) {
-      batch_set_subset<DataType, sharedType><<<blocks, threads>>>(
-          v_size, shared->nodes[from_id].device_ptr(),
-          ctx->offsets.device_ptr(), shared_data->device_ptr(),
-          field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
-    } else if (op == addOp) {
-      batch_add_subset<DataType, sharedType><<<blocks, threads>>>(
-          v_size, shared->nodes[from_id].device_ptr(),
-          ctx->offsets.device_ptr(), shared_data->device_ptr(),
-          field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
-    } else if (op == minOp) {
-      batch_min_subset<DataType, sharedType><<<blocks, threads>>>(
-          v_size, shared->nodes[from_id].device_ptr(),
-          ctx->offsets.device_ptr(), shared_data->device_ptr(),
-          field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
-    }
+
+  for (iter = 0; iter < *v_size; iter += mini_vsize) {
+	  size_t end = (iter + mini_vsize > *v_size) ? (*v_size) : (iter + mini_vsize);
+
+	  if (data_mode == onlyData) {
+		  if (op == setOp) {
+			  batch_set_subset<DataType, sharedType><<<blocks, threads>>>(
+										      end, iter, shared->nodes[from_id].device_ptr(),
+										      shared_data->device_ptr(), field->data.gpu_wr_ptr(),
+										      field->is_updated.gpu_wr_ptr());
+		  } else if (op == addOp) {
+			  batch_add_subset<DataType, sharedType><<<blocks, threads>>>(
+										      end, iter, shared->nodes[from_id].device_ptr(),
+										      shared_data->device_ptr(), field->data.gpu_wr_ptr(),
+										      field->is_updated.gpu_wr_ptr());
+		  } else if (op == minOp) {
+			  batch_min_subset<DataType, sharedType><<<blocks, threads>>>(
+										      end, iter, shared->nodes[from_id].device_ptr(),
+										      shared_data->device_ptr(), field->data.gpu_wr_ptr(),
+										      field->is_updated.gpu_wr_ptr());
+		  }
+	  } else if (data_mode == gidsData) {
+		  if (op == setOp) {
+			  batch_set_subset<DataType, sharedType><<<blocks, threads>>>(
+										      end, iter, ctx->offsets.device_ptr(), shared_data->device_ptr(),
+										      field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
+		  } else if (op == addOp) {
+			  batch_add_subset<DataType, sharedType><<<blocks, threads>>>(
+										      end, iter, ctx->offsets.device_ptr(), shared_data->device_ptr(),
+										      field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
+		  } else if (op == minOp) {
+			  batch_min_subset<DataType, sharedType><<<blocks, threads>>>(
+										      end, iter, ctx->offsets.device_ptr(), shared_data->device_ptr(),
+										      field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
+		  }
+	  } else { // bitsetData || offsetsData
+		  if (op == setOp) {
+			  batch_set_subset<DataType, sharedType><<<blocks, threads>>>(
+										      end, iter, shared->nodes[from_id].device_ptr(),
+										      ctx->offsets.device_ptr(), shared_data->device_ptr(),
+										      field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
+		  } else if (op == addOp) {
+			  batch_add_subset<DataType, sharedType><<<blocks, threads>>>(
+										      end, iter, shared->nodes[from_id].device_ptr(),
+										      ctx->offsets.device_ptr(), shared_data->device_ptr(),
+										      field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
+		  } else if (op == minOp) {
+			  batch_min_subset<DataType, sharedType><<<blocks, threads>>>(
+										      end, iter, shared->nodes[from_id].device_ptr(),
+										      ctx->offsets.device_ptr(), shared_data->device_ptr(),
+										      field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
+		  }
+	  }
   }
+
   check_cuda_kernel;
   // timer2.stop();
   // timer.stop();
