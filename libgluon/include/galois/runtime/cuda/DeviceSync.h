@@ -602,7 +602,7 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   for (iter = 0; iter < *v_size; iter += mini_vsize) {
 	  size_t size_to_copy = (iter + mini_vsize > *v_size) ? *v_size - iter + 1 : mini_vsize;
 	  shared_data->async_copy_to_cpu((DataType*)(send_buffer + offset), size_to_copy);
-	  offset = offset + mini_vsize;
+	  offset = offset + size_to_copy;
   }
 
   check_cuda_kernel;
@@ -708,7 +708,8 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
   size_t mini_vsize = v_size / 4;
   for (size_t iter = 0; iter < v_size; iter += mini_vsize) {
 	  size_t size_to_copy = (iter + mini_vsize > v_size) ? v_size - iter + 1 : mini_vsize;
-	  shared_data->async_copy_to_gpu((DataType*)(recv_buffer + offset), v_size);	  
+	  shared_data->async_copy_to_gpu((DataType*)(recv_buffer + offset), size_to_copy);
+	  offset = offset + size_to_copy;
   }
   
   // timer1.stop();
