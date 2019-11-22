@@ -254,6 +254,15 @@ public:
         cudaMemcpy(ptr, cpu_ptr, nuseb * sizeof(T), cudaMemcpyHostToDevice));
   }
 
+  void async_copy_to_gpu(T* cpu_ptr, size_t nuseb) {
+    if (cpu_ptr == NULL)
+      return;
+    assert(ptr != NULL);
+    assert(nuseb <= nmemb);
+    CUDA_SAFE_CALL(
+        cudaMemcpyAsync(ptr, cpu_ptr, nuseb * sizeof(T), cudaMemcpyHostToDevice));
+  }
+  
   void copy_to_cpu(T* cpu_ptr) { copy_to_cpu(cpu_ptr, nmemb); }
 
   void copy_to_cpu(T* cpu_ptr, size_t nuseb) {
