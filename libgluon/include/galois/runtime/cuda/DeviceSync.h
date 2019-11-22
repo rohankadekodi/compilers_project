@@ -462,13 +462,13 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   // timer1.start();
   size_t v_size = shared->num_nodes[from_id];
   if (reset) {
-    batch_get_reset_subset<DataType><<<blocks, threads>>>(
-        v_size, shared->nodes[from_id].device_ptr(), shared_data->device_ptr(),
-        field->data.gpu_wr_ptr(), i);
+	  batch_get_reset_subset<DataType><<<blocks, threads>>>(
+								v_size, 0, shared->nodes[from_id].device_ptr(), shared_data->device_ptr(),
+								field->data.gpu_wr_ptr(), i);
   } else {
-    batch_get_subset<DataType><<<blocks, threads>>>(
-						    v_size, 0, shared->nodes[from_id].device_ptr(), shared_data->device_ptr(),
-        field->data.gpu_rd_ptr());
+	  batch_get_subset<DataType><<<blocks, threads>>>(
+							  v_size, 0, shared->nodes[from_id].device_ptr(), shared_data->device_ptr(),
+							  field->data.gpu_rd_ptr());
   }
   check_cuda_kernel;
   // timer1.stop();
@@ -491,7 +491,7 @@ size_t serializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
                       DeviceOnly<DataType>* shared_data, uint8_t* send_buffer) {
   if (data_mode == noData) {
     // do nothing
-    return;
+    return 0;
   }
 
   size_t offset = 0;
@@ -614,10 +614,10 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   }
   
   if ((*data_mode == gidsData) || (*data_mode == offsetsData)) {
-	  offset += sizeof(bit_set_count);
+	  offset += sizeof(*v_size);
 	  ctx->offsets.copy_to_cpu((unsigned int*)(send_buffer + offset), *v_size);
 	  offset += (*v_size) * sizeof(unsigned int);
-  } else if ((data_mode == bitsetData)) {
+  } else if ((*data_mode == bitsetData)) {
 	  offset += sizeof(shared->num_nodes[from_id]);
 	  size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
 	  offset += sizeof(vec_size);
@@ -706,16 +706,16 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
   size_t offset = deserializeMessage(ctx, data_mode, v_size, shared->num_nodes[from_id], shared_data, recv_buffer);
 
   size_t mini_vsize = v_size / 4;
-  for (iter = 0; iter < *v_size; iter += mini_vsize) {
-	  size_t size_to_copy = (iter + mini_vsize > *v_size) ? *v_size - iter + 1 : mini_vsize;
-	  shared_data->copy_to_gpu((DataType*)(recv_buffer + offset), bit_set_count);	  
+  for (size_t iter = 0; iter < v_size; iter += mini_vsize) {
+	  size_t size_to_copy = (iter + mini_vsize > v_size) ? v_size - iter + 1 : mini_vsize;
+	  shared_data->copy_to_gpu((DataType*)(recv_buffer + offset), v_size);	  
   }
   
   // timer1.stop();
   // timer2.start();
 
-  for (iter = 0; iter < *v_size; iter += mini_vsize) {
-	  size_t end = (iter + mini_vsize > *v_size) ? (*v_size) : (iter + mini_vsize);
+  for (size_t iter = 0; iter < v_size; iter += mini_vsize) {
+	  size_t end = (iter + mini_vsize > v_size) ? (v_size) : (iter + mini_vsize);
 
 	  if (data_mode == onlyData) {
 		  if (op == setOp) {
