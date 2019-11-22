@@ -486,12 +486,51 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 }
 
 template <typename DataType>
-size_t serializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
+size_t computeOffset(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
                       size_t bit_set_count, size_t num_shared,
                       DeviceOnly<DataType>* shared_data, uint8_t* send_buffer) {
   if (data_mode == noData) {
     // do nothing
     return 0;
+  }
+
+  size_t offset = 0;
+
+  // serialize data_mode
+  offset += sizeof(data_mode);
+
+  if (data_mode != onlyData) {
+    // serialize bit_set_count
+    offset += sizeof(bit_set_count);
+  }
+
+  if ((data_mode == gidsData) || (data_mode == offsetsData)) {
+    // serialize offsets vector
+    offset += sizeof(bit_set_count);
+    offset += bit_set_count * sizeof(unsigned int);
+  } else if ((data_mode == bitsetData)) {
+    // serialize bitset
+    offset += sizeof(num_shared);
+    size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
+    offset += sizeof(vec_size);
+    offset += vec_size * sizeof(uint64_t);
+  }
+
+  // serialize data vector
+  offset += sizeof(bit_set_count);
+
+  return offset;
+
+  //offset += bit_set_count * sizeof(DataType);
+}
+
+template <typename DataType>
+void serializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
+                      size_t bit_set_count, size_t num_shared,
+                      DeviceOnly<DataType>* shared_data, uint8_t* send_buffer) {
+  if (data_mode == noData) {
+    // do nothing
+    return;
   }
 
   size_t offset = 0;
@@ -510,6 +549,7 @@ size_t serializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
     // serialize offsets vector
     memcpy(send_buffer + offset, &bit_set_count, sizeof(bit_set_count));
     offset += sizeof(bit_set_count);
+    ctx->offsets.copy_to_cpu((unsigned int*)(send_buffer + offset), bit_set_count);
     offset += bit_set_count * sizeof(unsigned int);
   } else if ((data_mode == bitsetData)) {
     // serialize bitset
@@ -518,14 +558,13 @@ size_t serializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
     size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
     memcpy(send_buffer + offset, &vec_size, sizeof(vec_size));
     offset += sizeof(vec_size);
+    ctx->is_updated.cpu_rd_ptr()->copy_to_cpu((uint64_t*)(send_buffer + offset));
     offset += vec_size * sizeof(uint64_t);
   }
 
   // serialize data vector
   memcpy(send_buffer + offset, &bit_set_count, sizeof(bit_set_count));
   offset += sizeof(bit_set_count);
-
-  return offset;
 
   //offset += bit_set_count * sizeof(DataType);
 }
@@ -545,7 +584,6 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   DeviceOnly<DataType>* shared_data = &field->shared_data;
   dim3 blocks;
   dim3 threads;
-  size_t mini_vsize = *v_size / 4;
   size_t iter = 0;
   kernel_sizing(blocks, threads);
 
@@ -566,15 +604,20 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
                             ctx->is_updated.gpu_rd_ptr(), v_size);
     // timer2.stop();
   }
+
+  size_t mini_vsize = (*v_size) / 4;
   
   *data_mode = get_data_mode<DataType>(*v_size, shared->num_nodes[from_id]);
   // timer3.start();
-  size_t offset = serializeMessage(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
+  size_t offset = computeOffset(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
   
   for (iter = 0; iter < *v_size; iter += mini_vsize) {
+	
+	  //printf("%s: GPU mini batch start %lu\n", __func__, iter);
 	  size_t end = (iter + mini_vsize > *v_size) ? (*v_size) : (iter + mini_vsize);
 	  if ((*data_mode) == onlyData) {
 		  *v_size = shared->num_nodes[from_id];
+		  end = (iter + mini_vsize > *v_size) ? (*v_size) : (iter + mini_vsize);
 		  if (reset) {
 			  batch_get_reset_subset<DataType><<<blocks, threads>>>(
 										end, iter, shared->nodes[from_id].device_ptr(),
@@ -607,23 +650,7 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 
   check_cuda_kernel;
 
-  offset = sizeof(*data_mode);
-
-  if (*data_mode == noData) {
-	  return;
-  }
-  
-  if ((*data_mode == gidsData) || (*data_mode == offsetsData)) {
-	  offset += sizeof(*v_size);
-	  ctx->offsets.copy_to_cpu((unsigned int*)(send_buffer + offset), *v_size);
-	  offset += (*v_size) * sizeof(unsigned int);
-  } else if ((*data_mode == bitsetData)) {
-	  offset += sizeof(shared->num_nodes[from_id]);
-	  size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
-	  offset += sizeof(vec_size);
-	  ctx->is_updated.cpu_rd_ptr()->copy_to_cpu((uint64_t*)(send_buffer + offset));
-	  offset += vec_size * sizeof(uint64_t);	  
-  }
+  serializeMessage(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
   
   // timer3.stop();
   // timer4.start();
