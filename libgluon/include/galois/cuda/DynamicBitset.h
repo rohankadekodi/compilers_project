@@ -115,6 +115,13 @@ public:
     bit_vector[bit_index] &= mask;
   }
 
+  void send_mpi(size_t nuseb) {
+	  if (ptr == NULL)
+		  return;
+	  assert(nuseb <= nmemb);
+	  MPI_Send(ptr, nuseb * sizeof(T), MPI_CHAR, 1, 100, MPI_COMM_WORLD);
+  }
+
   void copy_to_cpu(uint64_t* bit_vector_cpu_copy) {
     assert(bit_vector_cpu_copy != NULL);
     CUDA_SAFE_CALL(cudaMemcpy(bit_vector_cpu_copy, bit_vector,
