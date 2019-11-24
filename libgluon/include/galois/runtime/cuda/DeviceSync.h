@@ -506,11 +506,11 @@ void gpuDirectSend(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
     // serialize bitset
     //memcpy(send_buffer + offset, &num_shared, sizeof(num_shared));
     //offset += sizeof(num_shared);
-    size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
+    //size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
     //memcpy(send_buffer + offset, &vec_size, sizeof(vec_size));
     //offset += sizeof(vec_size);
     //MPI_Send(ctx->is_updated.cpu_rd_ptr(), (num_shared+vec_size), MPI_CHAR, 1, 100, MPI_COMM_WORLD);
-    ctx->is_updated.cpu_rd_ptr()->send_mpi(num_shared + vec_size);
+    ctx->is_updated.cpu_rd_ptr()->send_mpi();
     //ctx->is_updated.cpu_rd_ptr()->copy_to_cpu((uint64_t*)(send_buffer + offset));
     //offset += vec_size * sizeof(uint64_t);
   }
