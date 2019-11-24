@@ -116,8 +116,6 @@ public:
   }
 
   void send_mpi() {
-	  if (bit_vector_copy == NULL)
-		  return;
 	  MPI_Send(bit_vector, vec_size() * sizeof(uint64_t), MPI_CHAR, 1, 100, MPI_COMM_WORLD);
   }
 
