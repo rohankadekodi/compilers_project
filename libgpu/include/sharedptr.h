@@ -263,6 +263,17 @@ public:
 	  assert(nuseb <= nmemb);
 	  MPI_Send(ptr, nuseb * sizeof(T), MPI_CHAR, 1, 100, MPI_COMM_WORLD);
   }
+
+  void recv_mpi() {
+	  recv_mpi(nmemb);
+  }
+  
+  void recv_mpi(size_t nuseb) {
+	  if (ptr == NULL)
+		  return;
+	  assert(nuseb <= nmemb);
+	  MPI_Recv(ptr, nuseb * sizeof(T), MPI_CHAR, 0, 100, MPI_COMM_WORLD);
+  }
   
   void copy_to_cpu(T* cpu_ptr, size_t nuseb) {
     if (ptr == NULL)
