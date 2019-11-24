@@ -119,6 +119,10 @@ public:
 	  MPI_Send(bit_vector, vec_size() * sizeof(uint64_t), MPI_CHAR, 1, 100, MPI_COMM_WORLD);
   }
 
+  void recv_mpi() {
+	  MPI_Recv(bit_vector, vec_size() * sizeof(uint64_t), MPI_CHAR, 0, 100, MPI_COMM_WORLD);
+  }
+  
   void copy_to_cpu(uint64_t* bit_vector_cpu_copy) {
     assert(bit_vector_cpu_copy != NULL);
     CUDA_SAFE_CALL(cudaMemcpy(bit_vector_cpu_copy, bit_vector,
