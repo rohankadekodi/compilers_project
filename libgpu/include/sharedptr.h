@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cuda.h>
 #include <assert.h>
+#include <mpi.h>
 #include "cutil_subset.h"
 
 template <typename T>
@@ -256,6 +257,13 @@ public:
 
   void copy_to_cpu(T* cpu_ptr) { copy_to_cpu(cpu_ptr, nmemb); }
 
+  void send_mpi(size_t nuseb) {
+	  if (ptr == NULL)
+		  return;
+	  assert(nuseb <= nmemb);
+	  MPI_Send(ptr, nuseb * sizeof(T), MPI_CHAR, 1, tag, MPI_COMM_WORLD);
+  }
+  
   void copy_to_cpu(T* cpu_ptr, size_t nuseb) {
     if (ptr == NULL)
       return;
