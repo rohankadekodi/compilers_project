@@ -1,0 +1,3 @@
+1. use non-default stream.
+2. use pinnable memory on the host.
+3. exploit asynchronous memory copy more: overlapping computation.
