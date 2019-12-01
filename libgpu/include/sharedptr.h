@@ -207,6 +207,7 @@ public:
 template <typename T>
 class DeviceOnly {
   T* ptr;
+  T* ptrTracker; /* It tracks currently assigned location */
   size_t nmemb;
 
 public:
@@ -254,13 +255,16 @@ public:
         cudaMemcpy(ptr, cpu_ptr, nuseb * sizeof(T), cudaMemcpyHostToDevice));
   }
 
-  void async_copy_to_gpu(T* cpu_ptr, size_t nuseb) {
+  void async_copy_to_gpu(T* cpu_ptr, size_t nuseb, bool isBegin) {
     if (cpu_ptr == NULL)
       return;
     assert(ptr != NULL);
     assert(nuseb <= nmemb);
+    if (isBegin) { ptrTracker = ptr; }
     CUDA_SAFE_CALL(
-        cudaMemcpyAsync(ptr, cpu_ptr, nuseb * sizeof(T), cudaMemcpyHostToDevice));
+        cudaMemcpyAsync(ptrTracker, cpu_ptr, nuseb * sizeof(T),
+                        cudaMemcpyHostToDevice));
+    ptrTracker += nuseb;
   }
   
   void copy_to_cpu(T* cpu_ptr) { copy_to_cpu(cpu_ptr, nmemb); }
@@ -274,13 +278,16 @@ public:
         cudaMemcpy(cpu_ptr, ptr, nuseb * sizeof(T), cudaMemcpyDeviceToHost));
   }
 
-  void async_copy_to_cpu(T* cpu_ptr, size_t nuseb) {
+  void async_copy_to_cpu(T* cpu_ptr, size_t nuseb, bool isBegin) {
     if (ptr == NULL)
       return;
     assert(cpu_ptr != NULL);
     assert(nuseb <= nmemb);
+    if (isBegin) { ptrTracker = ptr; }
     CUDA_SAFE_CALL(
-        cudaMemcpyAsync(cpu_ptr, ptr, nuseb * sizeof(T), cudaMemcpyDeviceToHost));
+        cudaMemcpyAsync(cpu_ptr, ptrTracker, nuseb * sizeof(T),
+                        cudaMemcpyDeviceToHost));
+    ptrTracker += nuseb;
   }
 
   

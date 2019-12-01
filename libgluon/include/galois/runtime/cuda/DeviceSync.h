@@ -606,18 +606,19 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   }
 
   size_t mini_vsize = (*v_size) / 4;
+  // If mini_vsize becomes 0, then it goes into infinite loop.
+  if (*v_size != 0 && mini_vsize <= 0) { mini_vsize = *v_size; }
   
   *data_mode = get_data_mode<DataType>(*v_size, shared->num_nodes[from_id]);
   // timer3.start();
-  size_t offset = computeOffset(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
   
   for (iter = 0; iter < *v_size; iter += mini_vsize) {
-	
 	  //printf("%s: GPU mini batch start %lu\n", __func__, iter);
-	  size_t end = (iter + mini_vsize > *v_size) ? (*v_size) : (iter + mini_vsize);
+    size_t nextCandIter = iter + mini_vsize;
+	  size_t end = (nextCandIter > *v_size) ? *v_size : nextCandIter;
 	  if ((*data_mode) == onlyData) {
 		  *v_size = shared->num_nodes[from_id];
-		  end = (iter + mini_vsize > *v_size) ? (*v_size) : (iter + mini_vsize);
+		  end = (nextCandIter > *v_size) ? (*v_size) : nextCandIter;
 		  if (reset) {
 			  batch_get_reset_subset<DataType><<<blocks, threads>>>(
 										end, iter, shared->nodes[from_id].device_ptr(),
@@ -642,15 +643,26 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 	  }
   }
 
+  // v_size could be updated in the previous loop.
+  // Use the new v_size.
+  size_t offset = computeOffset(ctx, *data_mode, *v_size,
+                                shared->num_nodes[from_id], shared_data,
+                                send_buffer);
+
+  bool isBegin = true;
   for (iter = 0; iter < *v_size; iter += mini_vsize) {
-	  size_t size_to_copy = (iter + mini_vsize > *v_size) ? *v_size - iter + 1 : mini_vsize;
-	  shared_data->async_copy_to_cpu((DataType*)(send_buffer + offset), size_to_copy);
-	  offset = offset + size_to_copy;
+	  size_t size_to_copy = (iter + mini_vsize > *v_size)?
+                          *v_size - iter : mini_vsize;
+	  shared_data->async_copy_to_cpu((DataType*)(send_buffer + offset),
+                                   size_to_copy, isBegin);
+	  offset = offset + sizeof(DataType)*size_to_copy;
+    if (isBegin) { isBegin = false; }
   }
 
   check_cuda_kernel;
 
-  serializeMessage(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
+  serializeMessage(ctx, *data_mode, *v_size, shared->num_nodes[from_id],
+                   shared_data, send_buffer);
   
   // timer3.stop();
   // timer4.start();
@@ -730,13 +742,21 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
   // ggc::Timer timer("timer"), timer1("timer1"), timer2("timer2");
   // timer.start();
   // timer1.start();
-  size_t offset = deserializeMessage(ctx, data_mode, v_size, shared->num_nodes[from_id], shared_data, recv_buffer);
+  size_t offset = deserializeMessage(ctx, data_mode, v_size,
+                                     shared->num_nodes[from_id],
+                                     shared_data, recv_buffer);
 
   size_t mini_vsize = v_size / 4;
+  if (v_size != 0 && mini_vsize <= 0) { mini_vsize = v_size; }
+
+  bool isBegin = true;
   for (size_t iter = 0; iter < v_size; iter += mini_vsize) {
-	  size_t size_to_copy = (iter + mini_vsize > v_size) ? v_size - iter + 1 : mini_vsize;
-	  shared_data->async_copy_to_gpu((DataType*)(recv_buffer + offset), size_to_copy);
-	  offset = offset + size_to_copy;
+	  size_t size_to_copy = (iter + mini_vsize > v_size)?
+                          v_size - iter : mini_vsize;
+	  shared_data->async_copy_to_gpu((DataType*)(recv_buffer + offset),
+                                   size_to_copy, isBegin);
+	  offset = offset + sizeof(DataType)*size_to_copy;
+    if (isBegin) { isBegin = false; }
   }
   
   // timer1.stop();
