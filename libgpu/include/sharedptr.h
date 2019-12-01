@@ -266,7 +266,7 @@ public:
                         cudaMemcpyHostToDevice));
     ptrTracker += nuseb;
   }
-  
+
   void copy_to_cpu(T* cpu_ptr) { copy_to_cpu(cpu_ptr, nmemb); }
 
   void copy_to_cpu(T* cpu_ptr, size_t nuseb) {
@@ -290,7 +290,6 @@ public:
     ptrTracker += nuseb;
   }
 
-  
   __device__ __host__ T* device_ptr() {
 #ifdef __CUDA_ARCH__
     return ptr; // TODO: this is invalid beyond one gpu device!

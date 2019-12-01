@@ -53,7 +53,7 @@ void kernel_sizing(dim3& blocks, dim3& threads) {
 
 template <typename DataType>
 __global__ void batch_get_subset(index_type subset_size,
-				 index_type subset_start,
+                                 index_type subset_start,
                                  const unsigned int* __restrict__ indices,
                                  DataType* __restrict__ subset,
                                  const DataType* __restrict__ array) {
@@ -68,7 +68,7 @@ __global__ void batch_get_subset(index_type subset_size,
 
 template <typename DataType, typename OffsetIteratorType>
 __global__ void batch_get_subset(index_type subset_size,
-				 index_type subset_start,
+                                 index_type subset_start,
                                  const unsigned int* __restrict__ indices,
                                  const OffsetIteratorType offsets,
                                  DataType* __restrict__ subset,
@@ -84,7 +84,7 @@ __global__ void batch_get_subset(index_type subset_size,
 
 template <typename DataType>
 __global__ void batch_get_reset_subset(index_type subset_size,
-				       index_type subset_start,
+                                       index_type subset_start,
                                        const unsigned int* __restrict__ indices,
                                        DataType* __restrict__ subset,
                                        DataType* __restrict__ array,
@@ -102,7 +102,7 @@ __global__ void batch_get_reset_subset(index_type subset_size,
 
 template <typename DataType, typename OffsetIteratorType>
 __global__ void batch_get_reset_subset(index_type subset_size,
-				       index_type subset_start,
+                                       index_type subset_start,
                                        const unsigned int* __restrict__ indices,
                                        const OffsetIteratorType offsets,
                                        DataType* __restrict__ subset,
@@ -120,7 +120,7 @@ __global__ void batch_get_reset_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType>
 __global__ void batch_set_subset(index_type subset_size,
-				 index_type start,
+                                 index_type start,
                                  const unsigned int* __restrict__ indices,
                                  const DataType* __restrict__ subset,
                                  DataType* __restrict__ array,
@@ -139,7 +139,7 @@ __global__ void batch_set_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType, typename OffsetIteratorType>
 __global__ void batch_set_subset(index_type subset_size,
-				 index_type start,
+                                 index_type start,
                                  const unsigned int* __restrict__ indices,
                                  const OffsetIteratorType offsets,
                                  const DataType* __restrict__ subset,
@@ -159,7 +159,7 @@ __global__ void batch_set_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType>
 __global__ void batch_add_subset(index_type subset_size,
-				 index_type start,
+                                 index_type start,
                                  const unsigned int* __restrict__ indices,
                                  const DataType* __restrict__ subset,
                                  DataType* __restrict__ array,
@@ -178,8 +178,8 @@ __global__ void batch_add_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType, typename OffsetIteratorType>
 __global__ void batch_add_subset(index_type subset_size,
-				 index_type start,
-				 const unsigned int* __restrict__ indices,
+                                 index_type start,
+                                 const unsigned int* __restrict__ indices,
                                  const OffsetIteratorType offsets,
                                  const DataType* __restrict__ subset,
                                  DataType* __restrict__ array,
@@ -198,7 +198,7 @@ __global__ void batch_add_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType>
 __global__ void batch_min_subset(index_type subset_size,
-				 index_type start,
+                                 index_type start,
                                  const unsigned int* __restrict__ indices,
                                  const DataType* __restrict__ subset,
                                  DataType* __restrict__ array,
@@ -219,7 +219,7 @@ __global__ void batch_min_subset(index_type subset_size,
 
 template <typename DataType, SharedType sharedType, typename OffsetIteratorType>
 __global__ void batch_min_subset(index_type subset_size,
-				 index_type start,
+                                 index_type start,
                                  const unsigned int* __restrict__ indices,
                                  const OffsetIteratorType offsets,
                                  const DataType* __restrict__ subset,
