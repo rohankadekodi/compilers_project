@@ -62,7 +62,7 @@ public:
     assert(sizeof(uint64_t) * 8 == 64);
     num_bits_capacity = nbits;
     num_bits          = nbits;
-    CUDA_SAFE_CALL(cudaMalloc(&bit_vector, vec_size() * sizeof(uint64_t)));
+    CUDA_SAFE_CALL(cudaHostAlloc(&bit_vector, vec_size() * sizeof(uint64_t)));
     reset();
   }
 
@@ -119,14 +119,14 @@ public:
     assert(bit_vector_cpu_copy != NULL);
     CUDA_SAFE_CALL(cudaMemcpy(bit_vector_cpu_copy, bit_vector,
                               vec_size() * sizeof(uint64_t),
-                              cudaMemcpyDeviceToHost));
+                              cudaMemcpyDefault));
   }
 
   void copy_to_gpu(uint64_t* cpu_bit_vector) {
     assert(cpu_bit_vector != NULL);
     CUDA_SAFE_CALL(cudaMemcpy(bit_vector, cpu_bit_vector,
                               vec_size() * sizeof(uint64_t),
-                              cudaMemcpyHostToDevice));
+                              cudaMemcpyDefault));
   }
 };
 

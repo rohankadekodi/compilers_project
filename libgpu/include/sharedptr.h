@@ -95,7 +95,7 @@ public:
 
   T* cpu_rd_ptr() {
     if (ptrs[0] == NULL)
-      ptrs[0] = (T*)calloc(nmemb, sizeof(T));
+	    ptrs[0] = (T*)calloc(nmemb, sizeof(T));
 
     if (!owner[0]) {
       int o;
@@ -132,9 +132,12 @@ public:
   {
     assert(device >= 1);
 
-    if (ptrs[device] == NULL)
-      CUDA_SAFE_CALL(cudaMalloc(&ptrs[device], nmemb * sizeof(T)));
-
+    if (ptrs[device] == NULL) {
+	    CUDA_SAFE_CALL(cudaHostAlloc(&ptrs[device], nmemb * sizeof(T)));
+	    //ptrs[device] = ptrs[0];
+	    //CUDA_SAFE_CALL(cudaMalloc(&ptrs[device], nmemb * sizeof(T)));
+    }
+    
     if (!owner[device]) {
       int o;
       if (find_owner(o))
@@ -150,7 +153,9 @@ public:
     assert(device >= 1);
 
     if (ptrs[device] == NULL) {
-      CUDA_SAFE_CALL(cudaMalloc(&ptrs[device], nmemb * sizeof(T)));
+	    CUDA_SAFE_CALL(cudaHostAlloc(&ptrs[device], nmemb * sizeof(T)));
+	    //CUDA_SAFE_CALL(cudaMalloc(&ptrs[device], nmemb * sizeof(T)));
+	    //ptrs[device] = ptrs[0];
     }
 
     if (!owner[device]) {
@@ -184,13 +189,13 @@ public:
 
     if (isCPU[dst] && !isCPU[src]) {
       CUDA_SAFE_CALL(cudaMemcpy(ptrs[dst], ptrs[src], nmemb * sizeof(T),
-                                cudaMemcpyDeviceToHost));
+                                cudaMemcpyDefault));
     } else if (!isCPU[dst] && !isCPU[src]) {
       CUDA_SAFE_CALL(cudaMemcpy(ptrs[dst], ptrs[src], nmemb * sizeof(T),
-                                cudaMemcpyDeviceToDevice));
+                                cudaMemcpyDefault));
     } else if (!isCPU[dst] && isCPU[src]) {
       CUDA_SAFE_CALL(cudaMemcpy(ptrs[dst], ptrs[src], nmemb * sizeof(T),
-                                cudaMemcpyHostToDevice));
+                                cudaMemcpyDefault));
     } else
       abort(); // cpu-to-cpu not implemented
   }
@@ -225,7 +230,7 @@ public:
   void alloc(size_t nmemb) {
     assert(this->nmemb == 0);
     this->nmemb = nmemb;
-    CUDA_SAFE_CALL(cudaMalloc(&ptr, nmemb * sizeof(T)));
+    CUDA_SAFE_CALL(cudaHostAlloc(&ptr, nmemb * sizeof(T)));
   }
 
   bool free() {
@@ -251,7 +256,7 @@ public:
     assert(ptr != NULL);
     assert(nuseb <= nmemb);
     CUDA_SAFE_CALL(
-        cudaMemcpy(ptr, cpu_ptr, nuseb * sizeof(T), cudaMemcpyHostToDevice));
+        cudaMemcpy(ptr, cpu_ptr, nuseb * sizeof(T), cudaMemcpyDefault));
   }
 
   void copy_to_cpu(T* cpu_ptr) { copy_to_cpu(cpu_ptr, nmemb); }
@@ -262,7 +267,7 @@ public:
     assert(cpu_ptr != NULL);
     assert(nuseb <= nmemb);
     CUDA_SAFE_CALL(
-        cudaMemcpy(cpu_ptr, ptr, nuseb * sizeof(T), cudaMemcpyDeviceToHost));
+        cudaMemcpy(cpu_ptr, ptr, nuseb * sizeof(T), cudaMemcpyDefault));
   }
 
   __device__ __host__ T* device_ptr() {
