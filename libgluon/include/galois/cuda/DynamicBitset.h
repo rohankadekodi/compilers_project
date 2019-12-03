@@ -62,7 +62,7 @@ public:
     assert(sizeof(uint64_t) * 8 == 64);
     num_bits_capacity = nbits;
     num_bits          = nbits;
-    CUDA_SAFE_CALL(cudaHostAlloc(&bit_vector, vec_size() * sizeof(uint64_t)), cudaHostAllocPortable);
+    CUDA_SAFE_CALL(cudaHostAlloc(&bit_vector, vec_size() * sizeof(uint64_t), cudaHostAllocPortable));
     reset();
   }
 
