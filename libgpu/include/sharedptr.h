@@ -133,7 +133,7 @@ public:
     assert(device >= 1);
 
     if (ptrs[device] == NULL) {
-	    CUDA_SAFE_CALL(cudaHostAlloc(&ptrs[device], nmemb * sizeof(T)), cudaHostAllocPortable);
+	    CUDA_SAFE_CALL(cudaHostAlloc(&ptrs[device], nmemb * sizeof(T), cudaHostAllocPortable));
 	    //ptrs[device] = ptrs[0];
 	    //CUDA_SAFE_CALL(cudaMalloc(&ptrs[device], nmemb * sizeof(T)));
     }
