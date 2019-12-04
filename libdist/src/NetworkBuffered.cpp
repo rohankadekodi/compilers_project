@@ -474,6 +474,63 @@ public:
   }
 
   virtual optional_t<std::pair<uint32_t, RecvBuffer>>
+  recieveTaggedGPUDirect(uint32_t tag,
+                std::unique_lock<galois::substrate::SimpleLock>* rlg,
+                bool& flag, int phase) {
+    tag += phase;
+    for (unsigned h = 0; h < recvData.size(); ++h) {
+      auto& rq = recvData[h];
+      if (rq.hasData(10000)) {
+        flag = true;
+        break;
+      }
+
+      if (rq.hasData(tag)) {
+        if (recvLock[h].try_lock()) {
+          std::unique_lock<galois::substrate::SimpleLock> lg(recvLock[h],
+                                                             std::adopt_lock);
+          auto buf = rq.popMsg(tag, inflightRecvs);
+          if (buf) {
+            ++statRecvNum;
+            statRecvBytes += buf->size();
+            memUsageTracker.decrementMemUsage(buf->size());
+            if (rlg)
+              *rlg = std::move(lg);
+            galois::runtime::trace("recvTagged", h, tag,
+                                   galois::runtime::printVec(buf->getVec()));
+            anyReceivedMessages = true;
+            return optional_t<std::pair<uint32_t, RecvBuffer>>(
+                std::make_pair(h, std::move(*buf)));
+          }
+        }
+      }
+      galois::runtime::trace("recvTagged BLOCKED this by that", tag,
+                             rq.getPresentTag());
+#if 0
+      else if (rq.getPresentTag() != ~0){
+        galois::runtime::trace("recvTagged BLOCKED % by %", tag, rq.getPresentTag());
+        if (recvLock[h].try_lock()) {
+          std::unique_lock<galois::substrate::SimpleLock> lg(recvLock[h], std::adopt_lock);
+          auto buf = rq.popMsg(rq.getPresentTag());
+          if (buf) {
+            if (rlg)
+              *rlg = std::move(lg);
+            uintptr_t fp = 0;
+            gDeserializeRaw(buf->r_linearData() + buf->r_size() - sizeof(uintptr_t), fp);
+            buf->pop_back(sizeof(uintptr_t));
+            assert(fp);
+            galois::runtime::trace("FP BLOCKED :", fp);
+            return optional_t<std::pair<uint32_t, RecvBuffer>>();
+          }
+        }
+      }
+#endif
+    }
+
+    return optional_t<std::pair<uint32_t, RecvBuffer>>();
+  }
+
+  virtual optional_t<std::pair<uint32_t, RecvBuffer>>
   recieveTagged(uint32_t tag,
                 std::unique_lock<galois::substrate::SimpleLock>* rlg, int phase) {
     tag += phase;

@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cuda.h>
+#include <cuda_runtime.h>
 #include <assert.h>
 #include <mpi.h>
 #include "cutil_subset.h"
@@ -134,7 +135,7 @@ public:
     assert(device >= 1);
 
     if (ptrs[device] == NULL)
-      CUDA_SAFE_CALL(cudaMalloc(&ptrs[device], nmemb * sizeof(T)));
+      CUDA_SAFE_CALL(cudaHostAlloc(&ptrs[device], nmemb * sizeof(T), cudaHostAllocPortable));
 
     if (!owner[device]) {
       int o;
@@ -151,7 +152,7 @@ public:
     assert(device >= 1);
 
     if (ptrs[device] == NULL) {
-      CUDA_SAFE_CALL(cudaMalloc(&ptrs[device], nmemb * sizeof(T)));
+      CUDA_SAFE_CALL(cudaHostAlloc(&ptrs[device], nmemb * sizeof(T), cudaHostAllocPortable));
     }
 
     if (!owner[device]) {
@@ -185,13 +186,16 @@ public:
 
     if (isCPU[dst] && !isCPU[src]) {
       CUDA_SAFE_CALL(cudaMemcpy(ptrs[dst], ptrs[src], nmemb * sizeof(T),
-                                cudaMemcpyDeviceToHost));
+                                cudaMemcpyDefault));
+                                //cudaMemcpyDeviceToHost));
     } else if (!isCPU[dst] && !isCPU[src]) {
       CUDA_SAFE_CALL(cudaMemcpy(ptrs[dst], ptrs[src], nmemb * sizeof(T),
-                                cudaMemcpyDeviceToDevice));
+                                cudaMemcpyDefault));
+                                //cudaMemcpyDeviceToDevice));
     } else if (!isCPU[dst] && isCPU[src]) {
       CUDA_SAFE_CALL(cudaMemcpy(ptrs[dst], ptrs[src], nmemb * sizeof(T),
-                                cudaMemcpyHostToDevice));
+                                cudaMemcpyDefault));
+                                //cudaMemcpyHostToDevice));
     } else
       abort(); // cpu-to-cpu not implemented
   }
@@ -226,7 +230,7 @@ public:
   void alloc(size_t nmemb) {
     assert(this->nmemb == 0);
     this->nmemb = nmemb;
-    CUDA_SAFE_CALL(cudaMalloc(&ptr, nmemb * sizeof(T)));
+    CUDA_SAFE_CALL(cudaHostAlloc(&ptr, nmemb * sizeof(T), cudaHostAllocPortable));
   }
 
   bool free() {
@@ -252,16 +256,19 @@ public:
     assert(ptr != NULL);
     assert(nuseb <= nmemb);
     CUDA_SAFE_CALL(
-        cudaMemcpy(ptr, cpu_ptr, nuseb * sizeof(T), cudaMemcpyHostToDevice));
+        //cudaMemcpy(ptr, cpu_ptr, nuseb * sizeof(T), cudaMemcpyHostToDevice));
+        cudaMemcpy(ptr, cpu_ptr, nuseb * sizeof(T), cudaMemcpyDefault));
   }
 
   void copy_to_cpu(T* cpu_ptr) { copy_to_cpu(cpu_ptr, nmemb); }
 
-  void send_mpi(size_t nuseb) {
+  void send_mpi(size_t nuseb, unsigned from_id) {
 	  if (ptr == NULL)
 		  return;
 	  assert(nuseb <= nmemb);
-	  MPI_Send(ptr, nuseb * sizeof(T), MPI_CHAR, 1, 100, MPI_COMM_WORLD);
+    printf("Send..");
+	  MPI_Send(ptr, nuseb * sizeof(T), MPI_BYTE, from_id, 10000, MPI_COMM_WORLD);
+    printf("Done\n");
   }
 
   void recv_mpi() {
@@ -272,7 +279,9 @@ public:
 	  if (ptr == NULL)
 		  return;
 	  assert(nuseb <= nmemb);
-	  MPI_Recv(ptr, nuseb * sizeof(T), MPI_CHAR, 0, 100, MPI_COMM_WORLD, NULL);
+    printf("Receive..");
+	  MPI_Recv(ptr, nuseb * sizeof(T), MPI_BYTE, 0, 10000, MPI_COMM_WORLD, NULL);
+    printf("Done\n");
   }
   
   void copy_to_cpu(T* cpu_ptr, size_t nuseb) {
@@ -281,7 +290,8 @@ public:
     assert(cpu_ptr != NULL);
     assert(nuseb <= nmemb);
     CUDA_SAFE_CALL(
-        cudaMemcpy(cpu_ptr, ptr, nuseb * sizeof(T), cudaMemcpyDeviceToHost));
+        //cudaMemcpy(cpu_ptr, ptr, nuseb * sizeof(T), cudaMemcpyDeviceToHost));
+        cudaMemcpy(cpu_ptr, ptr, nuseb * sizeof(T), cudaMemcpyDefault));
   }
 
   __device__ __host__ T* device_ptr() {

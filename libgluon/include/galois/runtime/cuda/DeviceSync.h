@@ -62,6 +62,7 @@ __global__ void batch_get_subset(index_type subset_size,
   for (index_type src = 0 + tid; src < src_end; src += nthreads) {
     unsigned index = indices[src];
     subset[src]    = array[index];
+    printf("src: %d, data: %d\n", src, subset[src]);
   }
 }
 
@@ -477,7 +478,8 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 template <typename DataType>
 void gpuDirectSend(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
                       size_t bit_set_count, size_t num_shared,
-                      DeviceOnly<DataType>* shared_data, uint8_t* send_buffer) {
+                      DeviceOnly<DataType>* shared_data, uint8_t* send_buffer,
+                      unsigned from_id) {
   if (data_mode == noData) {
     // do nothing
     return;
@@ -500,7 +502,7 @@ void gpuDirectSend(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
     //memcpy(send_buffer + offset, &bit_set_count, sizeof(bit_set_count));
     //offset += sizeof(bit_set_count);	  
     //ctx->offsets.copy_to_cpu((unsigned int*)(send_buffer + offset), bit_set_count);
-    ctx->offsets.send_mpi(bit_set_count);
+    ctx->offsets.send_mpi(bit_set_count, from_id);
     //offset += bit_set_count * sizeof(unsigned int);
   } else if ((data_mode == bitsetData)) {
     // serialize bitset
@@ -510,7 +512,8 @@ void gpuDirectSend(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
     //memcpy(send_buffer + offset, &vec_size, sizeof(vec_size));
     //offset += sizeof(vec_size);
     //MPI_Send(ctx->is_updated.cpu_rd_ptr(), (num_shared+vec_size), MPI_CHAR, 1, 100, MPI_COMM_WORLD);
-    ctx->is_updated.cpu_rd_ptr()->send_mpi();
+    ctx->is_updated.cpu_rd_ptr()->send_mpi(from_id);
+    // serialize bitset
     //ctx->is_updated.cpu_rd_ptr()->copy_to_cpu((uint64_t*)(send_buffer + offset));
     //offset += vec_size * sizeof(uint64_t);
   }
@@ -519,7 +522,7 @@ void gpuDirectSend(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
   //memcpy(send_buffer + offset, &bit_set_count, sizeof(bit_set_count));
   //offset += sizeof(bit_set_count);
   //MPI_Send(shared_data, bit_set_count, MPI_CHAR, 1, 100, MPI_COMM_WORLD);
-  shared_data->send_mpi(bit_set_count);
+  shared_data->send_mpi(bit_set_count, from_id);
   //shared_data->copy_to_cpu((DataType*)(send_buffer + offset), bit_set_count);
   //offset += bit_set_count * sizeof(DataType);
 }
@@ -633,7 +636,7 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   // timer3.stop();
   // timer4.start();
   //serializeMessage(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
-  gpuDirectSend(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer);
+  gpuDirectSend(ctx, *data_mode, *v_size, shared->num_nodes[from_id], shared_data, send_buffer, from_id);
   // timer4.stop();
   // timer.stop();
   // fprintf(stderr, "Get %u->%u: %d mode %u bitset %u indices. Time (ms): %llu
@@ -662,7 +665,7 @@ void gpuDirectRecv(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
   if (data_mode == offsetsData) {
     // deserialize offsets vector
     //offset += sizeof(bit_set_count);
-    ctx->offsets.recv_mpi(bit_set_count);
+    //ctx->offsets.recv_mpi(bit_set_count);
     //MPI_Recv(ctx->offsets, bit_set_count, MPI_CHAR, 0, 100, MPI_COMM_WORLD, &status);    
     //ctx->offsets.copy_to_gpu((unsigned int*)(recv_buffer + offset), bit_set_count);
     //offset += bit_set_count * sizeof(unsigned int);
@@ -673,7 +676,7 @@ void gpuDirectRecv(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
     //size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
     //offset += sizeof(vec_size);
     //MPI_Recv(ctx->is_updated.cpu_rd_ptr(), (num_shared + vec_size), MPI_CHAR, 0, 100, MPI_COMM_WORLD, &status);
-    ctx->is_updated.cpu_rd_ptr()->recv_mpi();
+    //ctx->is_updated.cpu_rd_ptr()->recv_mpi();
     //ctx->is_updated.cpu_rd_ptr()->copy_to_gpu((uint64_t*)(recv_buffer + offset));
     //offset += vec_size * sizeof(uint64_t);
     // get offsets
@@ -687,7 +690,7 @@ void gpuDirectRecv(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
 
   // deserialize data vector
   //offset += sizeof(bit_set_count);
-  shared_data->recv_mpi(bit_set_count);
+  //shared_data->recv_mpi(bit_set_count);
   //MPI_Recv(shared_data, bit_set_count, MPI_CHAR, 0, 100, MPI_COMM_WORLD, &status);        
   //shared_data->copy_to_gpu((DataType*)(recv_buffer + offset), bit_set_count);
   //offset += bit_set_count * sizeof(DataType);

@@ -28,6 +28,7 @@
 
 #include <unordered_map>
 #include <fstream>
+#include <iostream>
 
 #include "galois/runtime/GlobalObj.h"
 #include "galois/runtime/DistStats.h"
@@ -195,12 +196,15 @@ private:
       if (x == id)
         continue;
 
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      bool flag = false;
+      decltype(net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
-      } while (!p);
+        p = net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag);
+      } while (!flag && !p);
 
-      galois::runtime::gDeserialize(p->second, masterNodes[p->first]);
+      if (!flag) {
+        galois::runtime::gDeserialize(p->second, masterNodes[p->first]);
+      }
     }
     incrementEvilPhase();
   }
@@ -230,10 +234,13 @@ private:
       if (x == id)
         continue;
 
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      bool flag = false;
+      decltype(net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
-      } while (!p);
+        p = net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag);
+      } while (!p && !flag);
+
+      if (!flag) { continue; }
 
       uint64_t total_mirror_nodes_from_others;
       uint64_t total_owned_nodes_from_others;
@@ -834,6 +841,8 @@ private:
 
     Tdeserialize.stop();
   }
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Other helper functions
@@ -2167,10 +2176,10 @@ private:
    * @param buf Buffer that contains received message from other host
    * @param loopName used to name timers for statistics
    */
-  template <
-      SyncType syncType, typename SyncFnTy, typename BitsetFnTy, bool async,
+  template
+      <SyncType syncType, typename SyncFnTy, typename BitsetFnTy, bool async,
       typename std::enable_if<!BitsetFnTy::is_vector_bitset()>::type* = nullptr>
-  size_t syncRecvApply(uint32_t from_id, galois::runtime::RecvBuffer& buf,
+  size_t syncRecvApply(bool isGPU, uint32_t from_id, galois::runtime::RecvBuffer& buf,
                        std::string loopName) {
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string set_timer_str(syncTypeStr + "Set_" +
@@ -2191,7 +2200,7 @@ private:
 
     Tset.start();
 
-    if (num > 0) { // only enter if we expect message from that host
+    if (num > 0 && !isGPU) { // only enter if we expect message from that host
       DataCommMode data_mode;
       // 1st deserialize gets data mode
       galois::runtime::gDeserialize(buf, data_mode);
@@ -2282,7 +2291,7 @@ private:
   template <
       SyncType syncType, typename SyncFnTy, typename BitsetFnTy, bool async,
       typename std::enable_if<BitsetFnTy::is_vector_bitset()>::type* = nullptr>
-  size_t syncRecvApply(uint32_t from_id, galois::runtime::RecvBuffer& buf,
+  size_t syncRecvApply(bool isGPU, uint32_t from_id, galois::runtime::RecvBuffer& buf,
                        std::string loopName) {
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string set_timer_str(syncTypeStr + "SetVector_" +
@@ -2299,7 +2308,7 @@ private:
 
     Tset.start();
 
-    if (num > 0) { // only enter if we expect message from that host
+    if (num > 0 && !isGPU) { // only enter if we expect message from that host
       for (unsigned i = 0; i < BitsetFnTy::numBitsets(); i++) {
         DataCommMode data_mode;
         // 1st deserialize gets data mode
@@ -2401,7 +2410,7 @@ private:
 
       galois::runtime::RecvBuffer rbuf(rb[x].begin(), rb[x].begin() + size);
 
-      syncRecvApply<syncType, SyncFnTy, BitsetFnTy>(x, rbuf, loopName);
+      syncRecvApply<syncType, SyncFnTy, BitsetFnTy>(false, x, rbuf, loopName);
     }
   }
 
@@ -2427,7 +2436,7 @@ private:
 
       MPI_Win_post(mpi_identity_groups[x], 0, window[x]);
 
-      syncRecvApply<syncType, SyncFnTy, BitsetFnTy>(x, rbuf, loopName);
+      syncRecvApply<syncType, SyncFnTy, BitsetFnTy>(false, x, rbuf, loopName);
     }
   }
 #endif
@@ -2457,16 +2466,19 @@ private:
     if (async) {
       size_t syncTypePhase = 0;
       if (syncType == syncBroadcast) syncTypePhase = 1;
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr, syncTypePhase)) p;
+      bool flag = false;
+      decltype(net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag, syncTypePhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr, syncTypePhase);
+        p = net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag, syncTypePhase);
 
-        if (p) {
-          syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(p->first,
+        if (p && !flag) {
+          syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(
+                                                        flag,
+                                                        p->first,
                                                         p->second,
                                                         loopName);
         }
-      } while (p);
+      } while (p && !flag);
     } else {
       for (unsigned x = 0; x < numHosts; ++x) {
         if (x == id)
@@ -2475,15 +2487,18 @@ private:
           continue;
 
         Twait.start();
-        decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+        bool flag = false;
+        decltype(net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag)) p;
         do {
-          p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
-        } while (!p);
+          p = net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag);
+        } while (!p && !flag);
         Twait.stop();
 
-        syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(p->first,
+        if (!flag) {
+          syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(flag, p->first,
                                                       p->second,
                                                       loopName);
+        }
       }
       incrementEvilPhase();
     }

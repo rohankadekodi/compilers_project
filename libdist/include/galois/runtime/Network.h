@@ -161,6 +161,11 @@ public:
   //! Reports the memory usage tracker's statistics to the stat manager
   void reportMemUsage() const;
 
+  //! Receive a tagged message with GPUDirect
+  virtual optional_t<std::pair<uint32_t, RecvBuffer>>
+  recieveTaggedGPUDirect(uint32_t tag, std::unique_lock<substrate::SimpleLock>* rlg, bool& flag,
+                         int type = 0) = 0;
+
   //! Receive a tagged message
   virtual optional_t<std::pair<uint32_t, RecvBuffer>>
   recieveTagged(uint32_t tag, std::unique_lock<substrate::SimpleLock>* rlg, int type = 0) = 0;
