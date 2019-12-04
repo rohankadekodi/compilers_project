@@ -266,9 +266,7 @@ public:
 	  if (ptr == NULL)
 		  return;
 	  assert(nuseb <= nmemb);
-    printf("Send..");
 	  MPI_Send(ptr, nuseb * sizeof(T), MPI_BYTE, from_id, 10000, MPI_COMM_WORLD);
-    printf("Done\n");
   }
 
   void recv_mpi() {

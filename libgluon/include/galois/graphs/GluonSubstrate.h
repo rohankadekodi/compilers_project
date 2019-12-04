@@ -691,6 +691,7 @@ private:
     auto& sharedNodes = (syncType == syncReduce) ? mirrorNodes : masterNodes;
 
     if (BitsetFnTy::is_valid()) {
+      //std::cout << "Here??\n";
       syncExtract<syncType, SyncFnTy, BitsetFnTy, async>(loopName, x,
                                                          sharedNodes[x], b);
     } else {
@@ -957,6 +958,7 @@ private:
     } else {
       // TODO If CVC, call is not comm partner else use default above
       if (sharedNodes[host].size() > 0) {
+        std::cout << "Shared nodes: " << sharedNodes[host].size() << "\n";
         return isNotCommPartnerCVC(host, syncType, writeLocation,
                                    readLocation);
       } else {
@@ -1305,8 +1307,10 @@ private:
   inline bool extractBatchWrapper(unsigned x, galois::runtime::SendBuffer& b,
                                   size_t& s, DataCommMode& data_mode) {
     if (syncType == syncReduce) {
+      std::cout << "syncType: reduce\n";
       return FnTy::extract_reset_batch(x, b.getVec().data(), &s, &data_mode);
     } else {
+      std::cout << "syncType: reduce another\n";
       return FnTy::extract_batch(x, b.getVec().data(), &s, &data_mode);
     }
   }
@@ -1745,7 +1749,9 @@ private:
   void syncExtract(std::string loopName, unsigned from_id,
                    std::vector<size_t>& indices,
                    galois::runtime::SendBuffer& b) {
+    //std::cout << "Then here??\n";
     uint32_t num = indices.size();
+    std::cout << "index size: " << num <<"\n";
     galois::DynamicBitSet& bit_set_comm = syncBitset;
     static galois::PODResizeableArray<typename SyncFnTy::ValTy> val_vec;
     galois::PODResizeableArray<unsigned int>& offsets = syncOffsets;
@@ -1813,6 +1819,7 @@ private:
           from_id, b, bit_set_count, data_mode);
       Textractbatch.stop();
 
+      /*
       // GPUs have a batch function they can use; CPUs do not; therefore,
       // CPUS always enter this if block
       if (!batch_succeeded) {
@@ -1881,6 +1888,8 @@ private:
 
       reportRedundantSize<SyncFnTy>(loopName, syncTypeStr, num, bit_set_count,
                                     bit_set_comm);
+
+                                    */
     } else {
       b.resize(0);
       if (!async) {
@@ -2102,34 +2111,45 @@ private:
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string statNumMessages_str(syncTypeStr + "NumMessages_" +
                                   get_run_identifier(loopName));
-
+    std::cout << "master lists ..\n";
+    for (uint64_t master : masterNodes[id]) {
+      std::cout << "master: " << master << "\n";
+    }
+    std::cout << "\nmirror lists.. \n";
     size_t numMessages = 0;
     for (unsigned h = 1; h < numHosts; ++h) {
       unsigned x = (id + h) % numHosts;
 
+      std::cout << "host:" << x << "\n";
+      // check whether it has mirror or not.
       if (nothingToSend(x, syncType, writeLocation, readLocation))
         continue;
 
+      for (uint64_t mirror : mirrorNodes[x]) {
+        std::cout << "mirror: " << mirror << "\n";
+      }
+      std::cout << "\n";
+
+
       getSendBuffer<syncType, SyncFnTy, BitsetFnTy, async>(loopName, x, b);
 
+      /*
       if ((!async) || (b.size() > 0)) {
         size_t syncTypePhase = 0;
         if (async && (syncType == syncBroadcast)) syncTypePhase = 1;
         net.sendTagged(x, galois::runtime::evilPhase, b, syncTypePhase);
         ++numMessages;
       }
+      */
     }
-    if (!async) {
+    //if (!async) {
       // Will force all messages to be processed before continuing
-      net.flush();
-    }
+      //net.flush();
+    //}
 
     if (BitsetFnTy::is_valid()) {
       reset_bitset(syncType, &BitsetFnTy::reset_range);
     }
-
-    galois::runtime::reportStat_Tsum(
-        RNAME, statNumMessages_str, numMessages);
   }
 
   /**
