@@ -293,6 +293,7 @@ batch_get_subset_bitset(index_type subset_size,
   for (index_type src = 0 + tid; src < src_end; src += nthreads) {
     unsigned index = indices[src];
     if (is_array_updated->test(index)) {
+      printf("INDEX %d is updated\n", src);
       is_subset_updated->set(src);
     }
   }
@@ -562,6 +563,16 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   //printf("Came here?\n");
   *v_size = shared->num_nodes[from_id];
   printf("v size: %d\n", *v_size);
+
+  // calculate subset of bitset.
+  batch_get_subset_bitset<<<blocks, threads>>>(
+      shared->num_nodes[from_id], shared->nodes[from_id].device_ptr(),
+      ctx->is_updated.gpu_rd_ptr(), field->is_updated.gpu_rd_ptr());
+  check_cuda_kernel;
+  // calculate offset of bitset.
+  get_offsets_from_bitset(shared->num_nodes[from_id],
+      ctx->offsets.device_ptr(),
+      ctx->is_updated.gpu_rd_ptr(), v_size);
 
   /*
   if ((*data_mode) == onlyData) {
