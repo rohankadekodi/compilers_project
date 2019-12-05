@@ -612,6 +612,11 @@ void gpuDirectRecv(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
 		   DeviceOnly<DataType>* shared_data, uint8_t* recv_buffer) {
   size_t offset = 0; // data_mode is already deserialized
 
+  ctx->offsets.recv_mpi(bit_set_count);
+  ctx->is_updated.gpu_rd_ptr()->recv_mpi();
+  shared_data->recv_mpi(bit_set_count);
+
+  /*
   if (data_mode != onlyData) {
     // deserialize bit_set_count
     memcpy(&bit_set_count, recv_buffer + offset, sizeof(bit_set_count));
@@ -653,6 +658,7 @@ void gpuDirectRecv(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
   //MPI_Recv(shared_data, bit_set_count, MPI_CHAR, 0, 100, MPI_COMM_WORLD, &status);        
   //shared_data->copy_to_gpu((DataType*)(recv_buffer + offset), bit_set_count);
   //offset += bit_set_count * sizeof(DataType);
+  */
 }
 
 template <typename DataType>

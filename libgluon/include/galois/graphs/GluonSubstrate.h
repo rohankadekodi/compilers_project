@@ -1548,7 +1548,8 @@ private:
   inline bool setBatchWrapper(unsigned x, galois::runtime::RecvBuffer& b,
                               DataCommMode& data_mode) {
     if (syncType == syncReduce) {
-      return FnTy::reduce_batch(x, b.getVec().data() + b.getOffset(), data_mode);
+	    return FnTy::reduce_batch(x, NULL, data_mode);
+	    //return FnTy::reduce_batch(x, b.getVec().data() + b.getOffset(), data_mode);
     } else {
       if (async) {
         return FnTy::reduce_mirror_batch(x, b.getVec().data() + b.getOffset(),
@@ -2223,9 +2224,9 @@ private:
     if (num > 0 && !isGPU) { // only enter if we expect message from that host
       DataCommMode data_mode;
       // 1st deserialize gets data mode
-      galois::runtime::gDeserialize(buf, data_mode);
+      //galois::runtime::gDeserialize(buf, data_mode);
 
-      if (data_mode != noData) {
+      //if (data_mode != noData) {
         // GPU update call
         Tsetbatch.start();
         bool batch_succeeded = setBatchWrapper<SyncFnTy, syncType, async>(
@@ -2233,7 +2234,8 @@ private:
         Tsetbatch.stop();
 
         // cpu always enters this block
-        if (!batch_succeeded) {
+	/*
+	if (!batch_succeeded) {
           size_t bit_set_count = num;
           size_t buf_start     = 0;
 
@@ -2280,7 +2282,8 @@ private:
           // TODO: reduce could update the bitset, so it needs to be copied
           // back to the device
         }
-      }
+	*/
+	//}
     }
 
     Tset.stop();
@@ -2483,45 +2486,28 @@ private:
     galois::CondStatTimer<MORE_COMM_STATS> Twait(wait_timer_str.c_str(),
                                                     RNAME);
 
-    if (async) {
-      size_t syncTypePhase = 0;
-      if (syncType == syncBroadcast) syncTypePhase = 1;
-      bool flag = false;
-      decltype(net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag, syncTypePhase)) p;
-      do {
-        p = net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag, syncTypePhase);
-
-        if (p && !flag) {
-          syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(
-                                                        flag,
-                                                        p->first,
-                                                        p->second,
-                                                        loopName);
-        }
-      } while (p && !flag);
-    } else {
       for (unsigned x = 0; x < numHosts; ++x) {
         if (x == id)
           continue;
         if (nothingToRecv(x, syncType, writeLocation, readLocation))
           continue;
 
-        Twait.start();
-        bool flag = false;
-        decltype(net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag)) p;
-        do {
-          p = net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag);
-        } while (!p && !flag);
-        Twait.stop();
+        //Twait.start();
+        //bool flag = false;
+        //decltype(net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag)) p;
+        //do {
+        //  p = net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag);
+        //} while (!p && !flag);
+        //Twait.stop();
 
-        if (!flag) {
-          syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(flag, p->first,
-                                                      p->second,
-                                                      loopName);
-        }
+        //if (!flag) {
+	syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(flag, 0,
+							     NULL,
+							     loopName);
+	  //}
       }
       incrementEvilPhase();
-    }
+   
   }
 
   /**
