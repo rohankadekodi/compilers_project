@@ -276,10 +276,10 @@ public:
   void recv_mpi(size_t nuseb) {
 	  if (ptr == NULL)
 		  return;
-	  assert(nuseb <= nmemb);
-    printf("Receive..");
+	  //assert(nuseb <= nmemb);
+	  //printf("Receive..");
 	  MPI_Recv(ptr, nuseb * sizeof(T), MPI_BYTE, 0, 10000, MPI_COMM_WORLD, NULL);
-    printf("Done\n");
+	  //printf("Done\n");
   }
   
   void copy_to_cpu(T* cpu_ptr, size_t nuseb) {

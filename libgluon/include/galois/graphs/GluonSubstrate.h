@@ -2221,17 +2221,19 @@ private:
 
     Tset.start();
 
-    if (num > 0 && !isGPU) { // only enter if we expect message from that host
-      DataCommMode data_mode;
+    //if (num > 0 && !isGPU) { // only enter if we expect message from that host
+    DataCommMode data_mode;
       // 1st deserialize gets data mode
       //galois::runtime::gDeserialize(buf, data_mode);
 
       //if (data_mode != noData) {
         // GPU update call
-        Tsetbatch.start();
-        bool batch_succeeded = setBatchWrapper<SyncFnTy, syncType, async>(
-            from_id, buf, data_mode);
-        Tsetbatch.stop();
+    Tsetbatch.start();
+    
+    std::cout << "from id is:: " << from_id << ", buf is " << buf << std::endl;
+    bool batch_succeeded = setBatchWrapper<SyncFnTy, syncType, async>(
+								      from_id, buf, data_mode);
+    Tsetbatch.stop();
 
         // cpu always enters this block
 	/*
@@ -2284,7 +2286,7 @@ private:
         }
 	*/
 	//}
-    }
+    //}
 
     Tset.stop();
 
