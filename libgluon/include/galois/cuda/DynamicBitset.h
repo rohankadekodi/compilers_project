@@ -120,7 +120,7 @@ public:
   }
 
   void recv_mpi() {
-	  MPI_Recv(bit_vector, vec_size() * sizeof(uint64_t), MPI_CHAR, 0, 10000, MPI_COMM_WORLD, NULL);
+	  MPI_Recv(bit_vector, vec_size() * sizeof(uint64_t), MPI_CHAR, 0, 10000, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   }
   
   void copy_to_cpu(uint64_t* bit_vector_cpu_copy) {
