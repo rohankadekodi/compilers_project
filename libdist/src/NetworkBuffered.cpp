@@ -475,7 +475,8 @@ public:
 
   virtual optional_t<std::pair<uint32_t, RecvBuffer>>
   getRecieveBuffer() {
-	  RecvBuffer buf = new RecvBuffer();
+	  galois::runtime::RecvBuffer b; // although a static variable, allocation not reused
+	  RecvBuffer buf(5);
 	  return optional_t<std::pair<uint32_t, RecvBuffer>>(std::make_pair(0, buf));	  
   }
 	
