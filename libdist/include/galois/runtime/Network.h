@@ -163,6 +163,10 @@ public:
 
   //! Receive a tagged message with GPUDirect
   virtual optional_t<std::pair<uint32_t, RecvBuffer>>
+  getRecieveBuffer() = 0;
+
+  //! Receive a tagged message with GPUDirect
+  virtual optional_t<std::pair<uint32_t, RecvBuffer>>
   recieveTaggedGPUDirect(uint32_t tag, std::unique_lock<substrate::SimpleLock>* rlg, bool& flag,
                          int type = 0) = 0;
 

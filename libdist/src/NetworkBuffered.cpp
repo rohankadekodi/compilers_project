@@ -474,6 +474,12 @@ public:
   }
 
   virtual optional_t<std::pair<uint32_t, RecvBuffer>>
+  getRecieveBuffer() {
+	  RecvBuffer buf = new RecvBuffer();
+	  return optional_t<std::pair<uint32_t, RecvBuffer>>(std::make_pair(0, buf));	  
+  }
+	
+  virtual optional_t<std::pair<uint32_t, RecvBuffer>>
   recieveTaggedGPUDirect(uint32_t tag,
                 std::unique_lock<galois::substrate::SimpleLock>* rlg,
                 bool& flag, int phase) {
