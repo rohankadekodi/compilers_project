@@ -278,7 +278,7 @@ public:
 	  if (ptr == NULL)
 		  return;
 	  //assert(nuseb <= nmemb);
-	  //printf("Receive..");
+	  printf("%s: Receiving. ptr = %p, count = %lu\n", __func__, ptr, nuseb * sizeof(T));
 	  MPI_Recv(ptr, nuseb * sizeof(T), MPI_BYTE, 0, 10000, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	  printf("%s: Received data\n", __func__);
   }
