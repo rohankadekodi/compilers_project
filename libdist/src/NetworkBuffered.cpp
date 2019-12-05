@@ -399,7 +399,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     std::cout << "Checking ready value != 3\n";
     while (ready != 3) {
       for (unsigned i = 0; i < sendData.size(); ++i) {
-        netio->progress();
+	//netio->progress();
         // handle send queue i
         auto& sd = sendData[i];
         if (sd.ready()) {
