@@ -709,7 +709,7 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
                             struct CUDA_Context_Field<DataType>* field,
                             unsigned from_id, uint8_t* recv_buffer,
                             DataCommMode data_mode) {
-  assert(data_mode != noData);
+	//assert(data_mode != noData);
   struct CUDA_Context_Shared* shared;
   if (sharedType == sharedMaster) {
     shared = &ctx->master;
