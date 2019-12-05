@@ -17,6 +17,7 @@
 #include <cuda_runtime.h>
 #include <assert.h>
 #include <mpi.h>
+#include <climits>
 #include "cutil_subset.h"
 
 template <typename T>
@@ -270,7 +271,7 @@ public:
   }
 
   void recv_mpi() {
-	  recv_mpi(nmemb);
+	  recv_mpi(ULLONG_MAX);
   }
   
   void recv_mpi(size_t nuseb) {
