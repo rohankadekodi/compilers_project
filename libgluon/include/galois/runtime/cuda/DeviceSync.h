@@ -779,7 +779,7 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
           field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
     }
   }
-  check_cuda_kernel;
+  //check_cuda_kernel;
   // timer2.stop();
   // timer.stop();
   // fprintf(stderr, "Set %u<-%u: %d mode Time (ms): %llu + %llu = %llu\n",
