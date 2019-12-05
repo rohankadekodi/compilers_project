@@ -2501,6 +2501,7 @@ private:
         //Twait.stop();
 
         //if (!flag) {
+	bool flag = false;
 	syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(flag, 0,
 							     NULL,
 							     loopName);
