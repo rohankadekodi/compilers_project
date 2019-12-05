@@ -375,11 +375,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     int rank;
     int hostSize;
 
-    while(true) {
-	    //Do Nothing
-    }
-
-    /*
     int rankSuccess = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     if (rankSuccess != MPI_SUCCESS) {
       MPI_Abort(MPI_COMM_WORLD, rankSuccess);
@@ -397,8 +392,11 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     assert(Num == (unsigned)hostSize);
 
     ready = 1;
+
+    std::cout << "Checking ready value < 2\n";
     while (ready < 2) { 
     };
+    std::cout << "Checking ready value != 3\n";
     while (ready != 3) {
       for (unsigned i = 0; i < sendData.size(); ++i) {
         netio->progress();
@@ -426,7 +424,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
         }
       }
     }
-    */
   }
 
   std::thread worker;
