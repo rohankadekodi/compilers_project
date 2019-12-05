@@ -370,11 +370,16 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   std::vector<sendBuffer> sendData;
 
   void workerThread() {
-// Initialize LWCI or MPI depending on what was defined in CMake
+// Initialize LWCI or MPI depending on what was defined in CMake    
     initializeMPI();
     int rank;
     int hostSize;
 
+    while(true) {
+	    //Do Nothing
+    }
+
+    /*
     int rankSuccess = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     if (rankSuccess != MPI_SUCCESS) {
       MPI_Abort(MPI_COMM_WORLD, rankSuccess);
@@ -392,7 +397,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     assert(Num == (unsigned)hostSize);
 
     ready = 1;
-    while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
+    while (ready < 2) { 
     };
     while (ready != 3) {
       for (unsigned i = 0; i < sendData.size(); ++i) {
@@ -421,6 +426,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
         }
       }
     }
+    */
   }
 
   std::thread worker;
@@ -431,7 +437,6 @@ public:
   using NetworkInterface::Num;
 
   NetworkInterfaceBuffered() {
-	  /*
     inflightSends = 0;
     inflightRecvs = 0;
     ready  = 0;
@@ -443,7 +448,6 @@ public:
     recvLock.resize(Num);
     sendData = decltype(sendData)(Num);
     ready    = 2;
-	  */
   }
 
   virtual ~NetworkInterfaceBuffered() {
