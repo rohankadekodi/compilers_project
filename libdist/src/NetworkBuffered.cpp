@@ -431,6 +431,7 @@ public:
   using NetworkInterface::Num;
 
   NetworkInterfaceBuffered() {
+	  /*
     inflightSends = 0;
     inflightRecvs = 0;
     ready  = 0;
@@ -442,6 +443,7 @@ public:
     recvLock.resize(Num);
     sendData = decltype(sendData)(Num);
     ready    = 2;
+	  */
   }
 
   virtual ~NetworkInterfaceBuffered() {
