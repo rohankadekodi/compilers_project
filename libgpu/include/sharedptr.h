@@ -280,7 +280,7 @@ public:
 	  //assert(nuseb <= nmemb);
 	  //printf("Receive..");
 	  MPI_Recv(ptr, nuseb * sizeof(T), MPI_BYTE, 0, 10000, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  //printf("Done\n");
+	  printf("%s: Received data\n", __func__);
   }
   
   void copy_to_cpu(T* cpu_ptr, size_t nuseb) {
