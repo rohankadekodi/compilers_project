@@ -609,17 +609,19 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 template <typename DataType>
 size_t gpuDirectRecv(struct CUDA_Context_Common* ctx,
                    struct CUDA_Context_Shared* shared,
-                   DeviceOnly<DataType>* shared_data) {
+                   DeviceOnly<DataType>* shared_data,
+                   unsigned* from_id) {
   MPI_Status pre_recv_stat, cur_recv_stat;
   MPI_Request cur_recv_req;
   MPI_Probe(MPI_ANY_SOURCE, 10000, MPI_COMM_WORLD, &pre_recv_stat);
-  unsigned from_id = pre_recv_stat.MPI_SOURCE;
-  size_t num_shared = shared->num_nodes[from_id];
+  *from_id = pre_recv_stat.MPI_SOURCE;
+  size_t num_shared = shared->num_nodes[*from_id];
 
   ctx->offsets.recv_impi(num_shared, &cur_recv_req);
+  MPI_Wait(&cur_recv_req, &cur_recv_stat);
   ctx->is_updated.gpu_rd_ptr()->recv_impi(&cur_recv_req);
+  MPI_Wait(&cur_recv_req, &cur_recv_stat);
   shared_data->recv_impi(num_shared, &cur_recv_req);
-
   MPI_Wait(&cur_recv_req, &cur_recv_stat);
 
   /*
@@ -714,7 +716,7 @@ void deserializeMessage(struct CUDA_Context_Common* ctx, DataCommMode data_mode,
 template <typename DataType, SharedType sharedType, UpdateOp op>
 void batch_set_shared_field(struct CUDA_Context_Common* ctx,
                             struct CUDA_Context_Field<DataType>* field,
-                            unsigned from_id, uint8_t* recv_buffer,
+                            unsigned dummy_id, uint8_t* recv_buffer,
                             DataCommMode data_mode) {
 	//assert(data_mode != noData);
   struct CUDA_Context_Shared* shared;
@@ -732,7 +734,8 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
   // timer.start();
   // timer1.start();
   //deserializeMessage(ctx, data_mode, v_size, shared->num_nodes[from_id], shared_data, recv_buffer);
-  size_t v_size = gpuDirectRecv(ctx, shared, shared_data);
+  unsigned from_id;
+  size_t v_size = gpuDirectRecv(ctx, shared, shared_data, &from_id);
   
   // timer1.stop();
   // timer2.start();

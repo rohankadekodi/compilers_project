@@ -1523,6 +1523,7 @@ private:
       if (async) {
         return FnTy::reduce_mirror_batch(x, b.getVec().data() + b.getOffset());
       } else {
+        std::cout << "SetVal Happen\n";
         return FnTy::setVal_batch(x, b.getVec().data() + b.getOffset());
       }
     }
