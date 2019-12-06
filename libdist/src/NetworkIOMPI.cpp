@@ -147,26 +147,28 @@ private:
       int rv = MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &flag,
                           &status);
       handleError(rv);
-      if (flag) {
-        ++inflightRecvs;
-        int nbytes;
-        rv = MPI_Get_count(&status, MPI_BYTE, &nbytes);
-        handleError(rv);
-#ifdef __GALOIS_BARE_MPI_COMMUNICATION__
-        assert(status.MPI_TAG <= 32767);
-        if (status.MPI_TAG != 32767) {
-#endif
-          inflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
-          auto& m = inflight.back();
-          memUsageTracker.incrementMemUsage(m.data.size());
-          rv = MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE,
-                         status.MPI_TAG, MPI_COMM_WORLD, &m.req);
+      if (status.MPI_TAG != 10000) {
+        if (flag) {
+          ++inflightRecvs;
+          int nbytes;
+          rv = MPI_Get_count(&status, MPI_BYTE, &nbytes);
           handleError(rv);
-          galois::runtime::trace("MPI IRECV", status.MPI_SOURCE, status.MPI_TAG,
-                                 m.data.size());
 #ifdef __GALOIS_BARE_MPI_COMMUNICATION__
-        }
+          assert(status.MPI_TAG <= 32767);
+          if (status.MPI_TAG != 32767) {
 #endif
+            inflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
+            auto& m = inflight.back();
+            memUsageTracker.incrementMemUsage(m.data.size());
+            rv = MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE,
+                           status.MPI_TAG, MPI_COMM_WORLD, &m.req);
+            handleError(rv);
+            galois::runtime::trace("MPI IRECV", status.MPI_SOURCE, status.MPI_TAG,
+                                   m.data.size());
+#ifdef __GALOIS_BARE_MPI_COMMUNICATION__
+          }
+#endif
+        }
       }
 
       // complete messages

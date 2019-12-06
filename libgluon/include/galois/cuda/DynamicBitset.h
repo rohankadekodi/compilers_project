@@ -115,8 +115,9 @@ public:
     bit_vector[bit_index] &= mask;
   }
 
-  void send_mpi(unsigned from_id) {
-	  MPI_Send(bit_vector, vec_size() * sizeof(uint64_t), MPI_BYTE, from_id, 10000, MPI_COMM_WORLD);
+  void send_mpi(unsigned to_id) {
+    //printf("Sender: Destination id %d***\n", to_id);
+	  MPI_Send(bit_vector, vec_size() * sizeof(uint64_t), MPI_BYTE, to_id, 10000, MPI_COMM_WORLD);
   }
 
   void recv_mpi() {

@@ -393,13 +393,11 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
     ready = 1;
 
-    std::cout << "Checking ready value < 2\n";
     while (ready < 2) { 
     };
-    std::cout << "Checking ready value != 3\n";
     while (ready != 3) {
       for (unsigned i = 0; i < sendData.size(); ++i) {
-	//netio->progress();
+	      netio->progress();
         // handle send queue i
         auto& sd = sendData[i];
         if (sd.ready()) {

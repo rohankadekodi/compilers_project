@@ -263,11 +263,11 @@ public:
 
   void copy_to_cpu(T* cpu_ptr) { copy_to_cpu(cpu_ptr, nmemb); }
 
-  void send_mpi(size_t nuseb, unsigned from_id) {
+  void send_mpi(size_t nuseb, unsigned to_id) {
 	  if (ptr == NULL)
 		  return;
 	  assert(nuseb <= nmemb);
-	  MPI_Send(ptr, nuseb * sizeof(T), MPI_BYTE, from_id, 10000, MPI_COMM_WORLD);
+	  MPI_Send(ptr, nuseb * sizeof(T), MPI_BYTE, to_id, 10000, MPI_COMM_WORLD);
   }
 
   void recv_mpi() {

@@ -958,7 +958,7 @@ private:
     } else {
       // TODO If CVC, call is not comm partner else use default above
       if (sharedNodes[host].size() > 0) {
-        std::cout << "Shared nodes: " << sharedNodes[host].size() << "\n";
+        //std::cout << "Shared nodes: " << sharedNodes[host].size() << "\n";
         return isNotCommPartnerCVC(host, syncType, writeLocation,
                                    readLocation);
       } else {
@@ -1307,10 +1307,10 @@ private:
   inline bool extractBatchWrapper(unsigned x, galois::runtime::SendBuffer& b,
                                   size_t& s, DataCommMode& data_mode) {
     if (syncType == syncReduce) {
-      std::cout << "syncType: reduce\n";
+      //std::cout << "syncType: reduce\n";
       return FnTy::extract_reset_batch(x, b.getVec().data(), &s, &data_mode);
     } else {
-      std::cout << "syncType: reduce another\n";
+      //std::cout << "syncType: reduce another\n";
       return FnTy::extract_batch(x, b.getVec().data(), &s, &data_mode);
     }
   }
@@ -1752,7 +1752,7 @@ private:
                    galois::runtime::SendBuffer& b) {
     //std::cout << "Then here??\n";
     uint32_t num = indices.size();
-    std::cout << "index size: " << num <<"\n";
+    //std::cout << "index size: " << num <<"\n";
     galois::DynamicBitSet& bit_set_comm = syncBitset;
     static galois::PODResizeableArray<typename SyncFnTy::ValTy> val_vec;
     galois::PODResizeableArray<unsigned int>& offsets = syncOffsets;
@@ -2112,22 +2112,22 @@ private:
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string statNumMessages_str(syncTypeStr + "NumMessages_" +
                                   get_run_identifier(loopName));
-    std::cout << "master lists ..\n";
+    std::cout << "======== HOST SIDE (" <<id << ") =======\n";
+    std::cout << "\t[master lists]\n";
     for (uint64_t master : masterNodes[id]) {
-      std::cout << "master: " << master << "\n";
+      std::cout << "\t\tmaster: " << master << "\n";
     }
-    std::cout << "\nmirror lists.. \n";
     size_t numMessages = 0;
     for (unsigned h = 1; h < numHosts; ++h) {
       unsigned x = (id + h) % numHosts;
 
-      std::cout << "host:" << x << "\n";
+      std::cout << "\t [Target host:" << x << "]\n";
       // check whether it has mirror or not.
       if (nothingToSend(x, syncType, writeLocation, readLocation))
         continue;
 
       for (uint64_t mirror : mirrorNodes[x]) {
-        std::cout << "mirror: " << mirror << "\n";
+        std::cout << "\t\tmirror: " << mirror << "\n";
       }
       std::cout << "\n";
 
@@ -2230,7 +2230,7 @@ private:
         // GPU update call
     Tsetbatch.start();
     
-    std::cout << "from id is:: " << from_id << ", buf is " << buf << std::endl;
+    //std::cout << "from id is:: " << from_id << ", buf is " << buf << std::endl;
     bool batch_succeeded = setBatchWrapper<SyncFnTy, syncType, async>(
 								      from_id, buf, data_mode);
     Tsetbatch.stop();

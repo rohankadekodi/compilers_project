@@ -59,10 +59,11 @@ __global__ void batch_get_subset(index_type subset_size,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
+  //printf("\tSent data---\n");
   for (index_type src = 0 + tid; src < src_end; src += nthreads) {
     unsigned index = indices[src];
     subset[src]    = array[index];
-    printf("Src: %d, Index: %d, Data: %d\n", src, index, subset[src]); 
+    printf("\t\tSrc: %d, Index: %d, Data: %d\n", src, index, subset[src]); 
   }
 }
 
@@ -75,10 +76,11 @@ __global__ void batch_get_subset(index_type subset_size,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
+  //printf("\tSent data---\n");
   for (index_type src = 0 + tid; src < src_end; src += nthreads) {
     unsigned index = indices[offsets[src]];
     subset[src]    = array[index];
-    printf("Src: %d, Index: %d, Data: %d\n", src, index, subset[src]); 
+    printf("\t\tSrc: %d, Index: %d, Data: %d\n", src, index, subset[src]); 
   }
 }
 
@@ -293,7 +295,7 @@ batch_get_subset_bitset(index_type subset_size,
   for (index_type src = 0 + tid; src < src_end; src += nthreads) {
     unsigned index = indices[src];
     if (is_array_updated->test(index)) {
-      printf("INDEX %d is updated\n", src);
+      //printf("INDEX %d is updated\n", src);
       is_subset_updated->set(src);
     }
   }
@@ -481,17 +483,17 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 template <typename DataType>
 void gpuDirectSend(struct CUDA_Context_Common* ctx, size_t bit_set_count,
                    size_t num_shared, DeviceOnly<DataType>* shared_data,
-                   uint8_t* send_buffer, unsigned from_id) {
+                   uint8_t* send_buffer, unsigned to_id) {
   //if ((data_mode == gidsData) || (data_mode == offsetsData)) {
     //std::cout << "gids Data\n";
   // Send offset + bitset
-  ctx->offsets.send_mpi(bit_set_count, from_id);
+  ctx->offsets.send_mpi(bit_set_count, to_id);
   //} else if ((data_mode == bitsetData)) {
   //  std::cout << "bitset data\n";
-  ctx->is_updated.gpu_rd_ptr()->send_mpi(from_id);
+  ctx->is_updated.gpu_rd_ptr()->send_mpi(to_id);
   //}
   // Send data
-  shared_data->send_mpi(bit_set_count, from_id);
+  shared_data->send_mpi(bit_set_count, to_id);
 }
 
 template <typename DataType>
@@ -553,8 +555,8 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
     shared = &ctx->mirror;
   }
 
-  printf("\n From ID: %d------------------- \n", from_id);
-  printf("Master node: %d, mirror node: %d\n", *(ctx->master.num_nodes), *(ctx->mirror.num_nodes));
+  //printf("\n From ID: %d------------------- \n", from_id);
+  //printf("Master node: %d, mirror node: %d\n", *(ctx->master.num_nodes), *(ctx->mirror.num_nodes));
   DeviceOnly<DataType>* shared_data = &field->shared_data;
   dim3 blocks;
   dim3 threads;
@@ -562,7 +564,7 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 
   //printf("Came here?\n");
   *v_size = shared->num_nodes[from_id];
-  printf("v size: %d\n", *v_size);
+  //printf("v size: %d\n", *v_size);
 
   // calculate subset of bitset.
   batch_get_subset_bitset<<<blocks, threads>>>(
@@ -589,13 +591,13 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   } else { // bitsetData || offsetsData
   */
     if (reset) {
-      std::cout << "reset\n";
+      //std::cout << "reset\n";
       batch_get_reset_subset<DataType><<<blocks, threads>>>(
           *v_size, shared->nodes[from_id].device_ptr(),
           ctx->offsets.device_ptr(), shared_data->device_ptr(),
           field->data.gpu_wr_ptr(), i);
     } else {
-      std::cout << "no- reset\n";
+      //std::cout << "no- reset\n";
       batch_get_subset<DataType><<<blocks, threads>>>(
           *v_size, shared->nodes[from_id].device_ptr(),
           ctx->offsets.device_ptr(), shared_data->device_ptr(),
