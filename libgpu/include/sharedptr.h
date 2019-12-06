@@ -267,22 +267,41 @@ public:
 	  if (ptr == NULL)
 		  return;
 	  assert(nuseb <= nmemb);
-	  MPI_Send(ptr, nuseb * sizeof(T), MPI_BYTE, to_id, 10000, MPI_COMM_WORLD);
+	  MPI_Send(ptr, nuseb * sizeof(T), MPI_BYTE,
+             to_id, 10000, MPI_COMM_WORLD);
   }
 
   void recv_mpi() {
-	  recv_mpi(ULLONG_MAX);
+    recv_mpi(ULLONG_MAX);
   }
-  
+
   void recv_mpi(size_t nuseb) {
-	  if (ptr == NULL)
-		  return;
-	  //assert(nuseb <= nmemb);
-	  printf("%s: Receiving. ptr = %p, count = %lu\n", __func__, ptr, nuseb * sizeof(T));
-	  MPI_Recv(ptr, nuseb * sizeof(T), MPI_BYTE, 0, 10000, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  printf("%s: Received data\n", __func__);
+    if (ptr == NULL)
+      return;
+    MPI_Recv(ptr, nuseb * sizeof(T), MPI_BYTE,
+             MPI_ANY_SOURCE, 10000, MPI_COMM_WORLD,
+             MPI_STATUS_IGNORE);
   }
-  
+
+  void send_impi(size_t nuseb, unsigned to_id) {
+    if (ptr == NULL) { return; }
+    assert(nuseb <= nmemb);
+    MPI_Request req;
+    MPI_Isend(ptr, nuseb * sizeof(T), MPI_BYTE,
+              to_id, 10000, MPI_COMM_WORLD, &req);
+  }
+
+  void recv_impi(MPI_Request *req) {
+    recv_impi(ULLONG_MAX, req);
+  }
+
+  void recv_impi(size_t nuseb, MPI_Request *req) {
+    if (ptr == NULL) { return; }
+    //assert(nuseb <= nmemb);
+    MPI_Irecv(ptr, nuseb * sizeof(T), MPI_BYTE, MPI_ANY_SOURCE,
+              10000, MPI_COMM_WORLD, req);
+  }
+
   void copy_to_cpu(T* cpu_ptr, size_t nuseb) {
     if (ptr == NULL)
       return;

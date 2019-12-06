@@ -116,18 +116,29 @@ public:
   }
 
   void send_mpi(unsigned to_id) {
-    //printf("Sender: Destination id %d***\n", to_id);
-	  MPI_Send(bit_vector, vec_size() * sizeof(uint64_t), MPI_BYTE, to_id, 10000, MPI_COMM_WORLD);
+    MPI_Send(bit_vector, vec_size() * sizeof(uint64_t),
+             MPI_BYTE, to_id, 10000, MPI_COMM_WORLD);
   }
 
   void recv_mpi() {
-	  printf("%s: Receiving. ptr = %p, count = %lu\n", __func__, bit_vector, vec_size() * sizeof(uint64_t));
-
-	  MPI_Recv(bit_vector, vec_size() * sizeof(uint64_t), MPI_CHAR, 0, 10000, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-	  printf("%s: Received data\n", __func__);
+    MPI_Recv(bit_vector, vec_size() * sizeof(uint64_t),
+             MPI_BYTE, MPI_ANY_SOURCE,
+             10000, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   }
-  
+
+  void send_impi(unsigned to_id) {
+    MPI_Request req;
+    MPI_Isend(bit_vector, vec_size() * sizeof(uint64_t),
+             MPI_BYTE, to_id, 10000, MPI_COMM_WORLD,
+             &req);
+  }
+
+  void recv_impi(MPI_Request *req) {
+    MPI_Irecv(bit_vector, vec_size() * sizeof(uint64_t),
+             MPI_BYTE, MPI_ANY_SOURCE, 10000, MPI_COMM_WORLD,
+             req);
+  }
+
   void copy_to_cpu(uint64_t* bit_vector_cpu_copy) {
     assert(bit_vector_cpu_copy != NULL);
     CUDA_SAFE_CALL(cudaMemcpy(bit_vector_cpu_copy, bit_vector,

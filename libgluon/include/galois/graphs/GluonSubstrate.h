@@ -2112,24 +2112,30 @@ private:
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string statNumMessages_str(syncTypeStr + "NumMessages_" +
                                   get_run_identifier(loopName));
+#ifdef GPUDIRECT_LOG
     std::cout << "======== HOST SIDE (" <<id << ") =======\n";
     std::cout << "\t[master lists]\n";
     for (uint64_t master : masterNodes[id]) {
       std::cout << "\t\tmaster: " << master << "\n";
     }
+#endif
     size_t numMessages = 0;
     for (unsigned h = 1; h < numHosts; ++h) {
       unsigned x = (id + h) % numHosts;
 
+#ifdef GPUDIRECT_LOG
       std::cout << "\t [Target host:" << x << "]\n";
+#endif
       // check whether it has mirror or not.
       if (nothingToSend(x, syncType, writeLocation, readLocation))
         continue;
 
+#ifdef GPUDIRECT_LOG
       for (uint64_t mirror : mirrorNodes[x]) {
         std::cout << "\t\tmirror: " << mirror << "\n";
       }
       std::cout << "\n";
+#endif
 
 
       getSendBuffer<syncType, SyncFnTy, BitsetFnTy, async>(loopName, x, b);
@@ -2221,19 +2227,19 @@ private:
 
     Tset.start();
 
-    //if (num > 0 && !isGPU) { // only enter if we expect message from that host
-    DataCommMode data_mode;
+    if (num > 0) {
+      DataCommMode data_mode;
       // 1st deserialize gets data mode
       //galois::runtime::gDeserialize(buf, data_mode);
 
       //if (data_mode != noData) {
-        // GPU update call
-    Tsetbatch.start();
-    
-    //std::cout << "from id is:: " << from_id << ", buf is " << buf << std::endl;
-    bool batch_succeeded = setBatchWrapper<SyncFnTy, syncType, async>(
-								      from_id, buf, data_mode);
-    Tsetbatch.stop();
+      // GPU update call
+      Tsetbatch.start();
+
+      bool batch_succeeded = setBatchWrapper<SyncFnTy, syncType, async>(
+          from_id, buf, data_mode);
+      Tsetbatch.stop();
+    }
 
         // cpu always enters this block
 	/*
@@ -2333,6 +2339,18 @@ private:
 
     Tset.start();
 
+    //if (num > 0 && !isGPU) { // only enter if we expect message from that host
+    if (num > 0) {
+      DataCommMode data_mode;
+      // 1st deserialize gets data mode
+      //galois::runtime::gDeserialize(buf, data_mode);
+
+      //if (data_mode != noData) {
+      // GPU update call
+      bool batch_succeeded = setBatchWrapper<SyncFnTy, syncType, async>(
+          from_id, buf, data_mode);
+    }
+    /*
     if (num > 0 && !isGPU) { // only enter if we expect message from that host
       for (unsigned i = 0; i < BitsetFnTy::numBitsets(); i++) {
         DataCommMode data_mode;
@@ -2389,6 +2407,7 @@ private:
         }
       }
     }
+    */
 
     Tset.stop();
 
@@ -2496,22 +2515,13 @@ private:
 	    if (nothingToRecv(x, syncType, writeLocation, readLocation))
 		    continue;
 	    
-        //Twait.start();
-        //bool flag = false;
-        //decltype(net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag)) p;
-        //do {
-        //  p = net.recieveTaggedGPUDirect(galois::runtime::evilPhase, nullptr, flag);
-        //} while (!p && !flag);
-        //Twait.stop();
-	    
-        //if (!flag) {
+      // Generate empty data.
 	    decltype(net.getRecieveBuffer()) p;
 	    p = net.getRecieveBuffer();
 	    bool flag = false;
 	    syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(flag, p->first,
 								 p->second,
 								 loopName);
-	  //}
     }
     incrementEvilPhase();
    

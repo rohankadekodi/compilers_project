@@ -147,7 +147,7 @@ private:
       int rv = MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &flag,
                           &status);
       handleError(rv);
-      if (status.MPI_TAG != 10000) {
+      if (status.MPI_TAG != 10000) { /* Run if it is not GPUDirect msg */
         if (flag) {
           ++inflightRecvs;
           int nbytes;
