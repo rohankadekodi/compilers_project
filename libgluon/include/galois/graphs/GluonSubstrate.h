@@ -2229,6 +2229,7 @@ private:
     Tset.start();
 
     if (num > 0) {
+      printf("That's what I want\n");
       DataCommMode data_mode;
       // 1st deserialize gets data mode
       //galois::runtime::gDeserialize(buf, data_mode);
@@ -2342,6 +2343,7 @@ private:
 
     //if (num > 0 && !isGPU) { // only enter if we expect message from that host
     if (num > 0) {
+      printf("Nope-\n");
       DataCommMode data_mode;
       // 1st deserialize gets data mode
       //galois::runtime::gDeserialize(buf, data_mode);
@@ -2521,7 +2523,8 @@ private:
 	    decltype(net.getRecieveBuffer()) p;
 	    p = net.getRecieveBuffer();
 	    bool flag = false;
-	    syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(flag, x,
+	    syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(flag,// p->first,
+                 x,
 								 p->second,
 								 loopName);
     }

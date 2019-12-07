@@ -42,6 +42,7 @@
 #define check_cuda_kernel check_cuda(cudaGetLastError());
 #endif
 
+//#define GPU_LOG
 MPI_Request send_req = MPI_REQUEST_NULL;
 MPI_Request recv_req;
 MPI_Request req_list[2] = { send_req, recv_req };
@@ -67,7 +68,9 @@ __global__ void deserialize_isupdate(uint8_t* buffer,
 
   for (index_type src = 0+tid; src < is_updated_size; src += nthreads) {
     ((uint64_t *)is_updated)[src] = ((uint64_t *)buffer)[src];
+#ifdef GPU_LOG
     printf("\t\tisupdate[%d]=%d\n", src, ((uint64_t *)is_updated)[src]);
+#endif
   }
 }
 
@@ -80,7 +83,9 @@ __global__ void deserialize_offsets(uint8_t* buffer,
 
   for (index_type src = 0+tid; src < offset_size; src += nthreads) {
     offsets[src] = ((uint32_t *)buffer)[src];
+#ifdef GPU_LOG
     printf("\t\toffsets[%d]=%d\n", src, offsets[src]);
+#endif
   }
 }
 
@@ -93,7 +98,9 @@ __global__ void deserialize_data(uint8_t* buffer,
 
   for (index_type src = 0+tid; src < data_size; src += nthreads) {
     data[src] = ((DataType *)buffer)[src];
+#ifdef GPU_LOG
     printf("\t\tdata[%d]=%d\n", src, data[src]);
+#endif
   }
 }
 
@@ -119,8 +126,10 @@ __global__ void deserialize_data(uint8_t* buffer,
   int update_front = (is_updated_size>10)?10:is_updated_size;
   for (index_type src = 0+tid; src < is_updated_size; src += nthreads) {
     //if (src < 10) {
+#ifdef GPU_LOG
       printf("\t\t Received is_updated src: (%d/%d), val: %d\n", src, 
              is_updated_size, is_updated[src]); 
+#endif
     //}
   }
 
@@ -132,7 +141,9 @@ __global__ void deserialize_data(uint8_t* buffer,
   
   for (index_type src = 0+tid; src < offset_size; src += nthreads) {
     //if (src < 10) {
+#ifdef GPU_LOG
       printf("\t\t Received offset src: (%d/%d), val: %d\n", src, offset_size, offsets[src]);
+#endif
     //}
   }
   
@@ -142,8 +153,10 @@ __global__ void deserialize_data(uint8_t* buffer,
   memcpy(data, buffer+offset, sizeof(DataType)*data_size);
 
   for (index_type src = 0+tid; src < data_size; src += nthreads) {
-    //if (src < 10) {
+    //if (src < 10) {    
+#ifdef GPU_LOG
       printf("\t\t Received data src: (%d/%d), val: %d\n", src, data_size, data[src]);
+#endif
     //}
   }
 
@@ -157,7 +170,9 @@ __global__ void serialize_isupdate(uint8_t* buffer,
   unsigned nthreads  = TOTAL_THREADS_1D;
   for (index_type src = 0+tid; src < is_updated_size; src += nthreads){
     ((uint64_t *)buffer)[src] = ((uint64_t *)is_updated)[src];
+#ifdef GPU_LOG
     printf("\t\tSent: isupdate buffer[%d]=%d\n", src, ((uint64_t *)buffer)[src]);
+#endif
   }
 }
 
@@ -169,7 +184,9 @@ __global__ void serialize_offsets(uint8_t* buffer,
   unsigned nthreads  = TOTAL_THREADS_1D;
   for (index_type src = 0+tid; src < offset_size; src += nthreads){
     ((uint32_t *)buffer)[src] = offsets[src];
+#ifdef GPU_LOG
     printf("\t\tSent: offsets buffer[%d]=%d\n", src, ((uint32_t *)buffer)[src]);
+#endif
   }
 }
 
@@ -181,7 +198,9 @@ __global__ void serialize_data(uint8_t* buffer,
   unsigned nthreads  = TOTAL_THREADS_1D;
   for (index_type src = 0+tid; src < data_size; src += nthreads){
     ((DataType *)buffer)[src] = data[src];
+#ifdef GPU_LOG
     printf("\t\tSent: data buffer[%d]=%d\n", src, ((DataType *)buffer)[src]);
+#endif
   }
 }
 
@@ -423,13 +442,21 @@ __global__ void batch_min_subset(index_type subset_size,
   unsigned nthreads  = TOTAL_THREADS_1D;
   index_type src_end = subset_size;
   for (index_type src = 0 + tid; src < src_end; src += nthreads) {
+    //if (subset_size == 681493) {
+    //printf("Local Id %d\n", src);
+    //printf("Local ID %d, Global Id offset: %d\n", src, offsets[src]); 
+    //}
     unsigned index = indices[offsets[src]];
+    //if (subset_size == 681493) {
+    //printf("Global ID %d\n", index);
+    //}
     if (array[index] > subset[src]) {
       array[index] = subset[src];
       if (sharedType != sharedMirror) {
         is_array_updated->set(index);
       }
     }
+    //printf("src %d done\n", src);
   }
 }
 
@@ -684,7 +711,12 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 template <typename DataType>
 void gpuDirectSend(struct CUDA_Context_Common* ctx, size_t data_size,
                    size_t num_shared, DeviceOnly<DataType>* shared_data,
-                   uint8_t* send_buffer, unsigned to_id) {
+                   uint8_t* send_buffer, unsigned to_id,
+                   DataCommMode data_mode) {
+  //if (data_mode == noData) {
+  //  return ;
+  //}
+
   dim3 blocks;
   dim3 threads;
   kernel_sizing(blocks, threads);
@@ -790,10 +822,12 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   kernel_sizing(blocks, threads);
 
   //printf("Came here?\n");
-  *v_size = shared->num_nodes[from_id];
+  // TODO NEW *v_size = shared->num_nodes[from_id];
   //printf("v size: %d\n", *v_size);
 
   // calculate subset of bitset.
+  ctx->is_updated.cpu_rd_ptr()->resize(shared->num_nodes[from_id]);
+  ctx->is_updated.cpu_rd_ptr()->reset();
   batch_get_subset_bitset<<<blocks, threads>>>(
       shared->num_nodes[from_id], shared->nodes[from_id].device_ptr(),
       ctx->is_updated.gpu_rd_ptr(), field->is_updated.gpu_rd_ptr());
@@ -802,6 +836,7 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   get_offsets_from_bitset(shared->num_nodes[from_id],
       ctx->offsets.device_ptr(),
       ctx->is_updated.gpu_rd_ptr(), v_size);
+  *data_mode = get_data_mode<DataType>(*v_size, shared->num_nodes[from_id]);
 
   /*
   if ((*data_mode) == onlyData) {
@@ -832,7 +867,7 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
     }
   //}
   check_cuda_kernel;
-  gpuDirectSend(ctx, *v_size, shared->num_nodes[from_id], shared_data, send_buffer, from_id);
+  gpuDirectSend(ctx, *v_size, shared->num_nodes[from_id], shared_data, send_buffer, from_id, *data_mode);
 }
 
 template <typename DataType>
@@ -848,6 +883,7 @@ size_t gpuDirectRecv(struct CUDA_Context_Common* ctx,
   int flag = 0;
   //size_t num_shared;
   size_t num_shared = shared->num_nodes[*from_id];
+  printf("num_shared: %d\n",  num_shared);
   int num_received;
 
   //printf("id %d Probe problem\n", ctx->id);
@@ -871,11 +907,11 @@ size_t gpuDirectRecv(struct CUDA_Context_Common* ctx,
   printf("Receiver %d,from %d,  Received size: %d\n", ctx->id, *from_id, num_received);
   //MPI_Wait(&recv_req, MPI_STATUS_IGNORE);
   if (send_req != MPI_REQUEST_NULL) {
-    printf("id %d Here\n", ctx->id);
+    //printf("id %d Here\n", ctx->id);
     MPI_Wait(&send_req, MPI_STATUS_IGNORE);
     send_req = MPI_REQUEST_NULL;
   }
-  printf("id %d After wait\n", ctx->id);
+  //printf("id %d After wait\n", ctx->id);
   //MPI_Waitall(2, req_list, MPI_STATUS_IGNORE);
 
 
@@ -1024,6 +1060,7 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
   //deserializeMessage(ctx, data_mode, v_size, shared->num_nodes[from_id], shared_data, recv_buffer);
   unsigned from_id;
   //size_t v_size = gpuDirectRecv(ctx, shared, shared_data, &from_id);
+  
   size_t v_size = gpuDirectRecv(ctx, shared, shared_data, &dummy_id);
   
   // timer1.stop();
@@ -1062,27 +1099,33 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
     }
   } else { // bitsetData || offsetsData */
  
-  /*
-  printf("set_subset! %d\n", ctx->id);
+  printf("from_node: %d, dummy id: %d, cur id: %d\n", from_id, dummy_id, ctx->id);
+  printf("shared size: %d\n", shared->nodes[dummy_id].size()); 
+  printf("v size: %d\n", v_size);
+  printf("offset size: %d\n", ctx->offsets.size());
+  printf("shared data size: %d\n", shared_data->size());
+  printf("field data size: %d\n", field->data.size());
+  printf("field updated size: %d\n", field->is_updated.cpu_rd_ptr()->vec_size());
   if (op == setOp) {
+    std::cout << "set\n";
     batch_set_subset<DataType, sharedType><<<blocks, threads>>>(
         v_size, shared->nodes[from_id].device_ptr(),
         ctx->offsets.device_ptr(), shared_data->device_ptr(),
         field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
   } else if (op == addOp) {
+    std::cout << "add\n";
     batch_add_subset<DataType, sharedType><<<blocks, threads>>>(
         v_size, shared->nodes[from_id].device_ptr(),
         ctx->offsets.device_ptr(), shared_data->device_ptr(),
         field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
   } else if (op == minOp) {
-    batch_min_subset<DataType, sharedType><<<blocks, threads>>>(
-        v_size, shared->nodes[from_id].device_ptr(),
+    batch_min_subset<DataType, sharedType><<<blocks, 1>>>(
+        v_size, shared->nodes[dummy_id].device_ptr(),
         ctx->offsets.device_ptr(), shared_data->device_ptr(),
         field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
   }
   //}
   check_cuda_kernel;
-  */
   printf("Done? %d\n", ctx->id);
   // timer2.stop();
   // timer.stop();
