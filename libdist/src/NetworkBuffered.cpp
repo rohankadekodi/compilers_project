@@ -494,6 +494,7 @@ public:
       }
 
       if (rq.hasData(tag)) {
+        printf("No tag %d \n", tag);
         if (recvLock[h].try_lock()) {
           std::unique_lock<galois::substrate::SimpleLock> lg(recvLock[h],
                                                              std::adopt_lock);

@@ -41,6 +41,8 @@ class DynamicBitset {
   size_t num_bits_capacity;
   size_t num_bits;
   uint64_t* bit_vector;
+  MPI_Request send_req, recv_req;
+
 
 public:
   DynamicBitset() {
@@ -121,22 +123,47 @@ public:
   }
 
   void recv_mpi() {
+    MPI_Status stats;
+    /*
     MPI_Recv(bit_vector, vec_size() * sizeof(uint64_t),
              MPI_BYTE, MPI_ANY_SOURCE,
              10000, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+             */
+    MPI_Recv(bit_vector, vec_size() * sizeof(uint64_t),
+             MPI_BYTE, MPI_ANY_SOURCE,
+             10000, MPI_COMM_WORLD, &stats);
+    int count;
+    MPI_Get_count(&stats, MPI_BYTE, &count);
+    printf("Dyn Send data: %d\n", count);
   }
 
-  void send_impi(unsigned to_id) {
-    MPI_Request req;
+  void send_impi(unsigned to_id, unsigned tag) {
     MPI_Isend(bit_vector, vec_size() * sizeof(uint64_t),
-             MPI_BYTE, to_id, 10000, MPI_COMM_WORLD,
-             &req);
+             MPI_BYTE, to_id, tag, MPI_COMM_WORLD,
+             &send_req);
+    int count;
+    MPI_Status req_stat;
+    MPI_Get_count(&req_stat, MPI_BYTE, &count);
+    printf("Dyn Send data: %d\n", count);
   }
 
-  void recv_impi(MPI_Request *req) {
+  void recv_impi(unsigned tag) {
     MPI_Irecv(bit_vector, vec_size() * sizeof(uint64_t),
-             MPI_BYTE, MPI_ANY_SOURCE, 10000, MPI_COMM_WORLD,
-             req);
+             MPI_BYTE, MPI_ANY_SOURCE, tag, MPI_COMM_WORLD,
+             &recv_req);
+    int flag = 0;
+    MPI_Status req_stat;
+    MPI_Wait(&recv_req, &req_stat);
+    //MPI_Wait(&send_req, &req_stat);
+    /*
+    MPI_Test(&recv_req, &flag, &req_stat); 
+    while (!flag) {
+      MPI_Test(&recv_req, &flag, &req_stat);
+    }
+    */
+    int count;
+    MPI_Get_count(&req_stat, MPI_BYTE, &count);
+    printf("Dyn recv data: %d\n", count);
   }
 
   void copy_to_cpu(uint64_t* bit_vector_cpu_copy) {

@@ -214,16 +214,20 @@ template <typename T>
 class DeviceOnly {
   T* ptr;
   size_t nmemb;
+  T max_val;
+  MPI_Request send_req, recv_req;
 
 public:
   DeviceOnly() {
     ptr   = NULL;
     nmemb = 0;
+    max_val = std::numeric_limits<T>::max();
   }
 
   DeviceOnly(size_t nmemb) {
     ptr = NULL;
     alloc(nmemb);
+    max_val = std::numeric_limits<T>::max();
   }
 
   size_t size() const { return nmemb; }
@@ -278,28 +282,47 @@ public:
   void recv_mpi(size_t nuseb) {
     if (ptr == NULL)
       return;
+    MPI_Status stat;
     MPI_Recv(ptr, nuseb * sizeof(T), MPI_BYTE,
              MPI_ANY_SOURCE, 10000, MPI_COMM_WORLD,
-             MPI_STATUS_IGNORE);
+             &stat);
+    int count;
+    MPI_Get_count(&stat, MPI_BYTE, &count);
+    printf("received size: %d\n", count);
   }
 
-  void send_impi(size_t nuseb, unsigned to_id) {
+  void send_impi(size_t nuseb, unsigned to_id, unsigned tag) {
     if (ptr == NULL) { return; }
     assert(nuseb <= nmemb);
-    MPI_Request req;
     MPI_Isend(ptr, nuseb * sizeof(T), MPI_BYTE,
-              to_id, 10000, MPI_COMM_WORLD, &req);
+              to_id, tag, MPI_COMM_WORLD, &send_req);
+    printf("Dyn Send data: %d\n", nuseb);
+    //MPI_Status req_stat;
+    //MPI_Wait(&req, &req_stat);
   }
 
-  void recv_impi(MPI_Request *req) {
-    recv_impi(ULLONG_MAX, req);
+  void recv_impi(unsigned tag) {
+    recv_impi(ULLONG_MAX, tag);
   }
 
-  void recv_impi(size_t nuseb, MPI_Request *req) {
+  void recv_impi(size_t nuseb, unsigned tag) {
     if (ptr == NULL) { return; }
-    //assert(nuseb <= nmemb);
+    assert(nuseb <= nmemb);
     MPI_Irecv(ptr, nuseb * sizeof(T), MPI_BYTE, MPI_ANY_SOURCE,
-              10000, MPI_COMM_WORLD, req);
+              tag, MPI_COMM_WORLD, &recv_req);
+    int flag = 0;
+    MPI_Status req_stat;
+    MPI_Wait(&recv_req, &req_stat);
+    //MPI_Wait(&send_req, &req_stat);
+    /*
+    MPI_Test(&recv_req, &flag, &req_stat); 
+    while (!flag) {
+      MPI_Test(&recv_req, &flag, &req_stat);
+    }
+    */
+    int count;
+    MPI_Get_count(&req_stat, MPI_BYTE, &count);
+    printf("shared ptr recv data: %d\n", count);
   }
 
   void copy_to_cpu(T* cpu_ptr, size_t nuseb) {

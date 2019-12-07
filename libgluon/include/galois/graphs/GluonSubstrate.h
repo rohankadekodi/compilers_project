@@ -2516,11 +2516,12 @@ private:
 	    if (nothingToRecv(x, syncType, writeLocation, readLocation))
 		    continue;
 	    
+      printf("SyncNetRC: host: %d target: %d\n", id, x);
       // Generate empty data.
 	    decltype(net.getRecieveBuffer()) p;
 	    p = net.getRecieveBuffer();
 	    bool flag = false;
-	    syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(flag, p->first,
+	    syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(flag, x,
 								 p->second,
 								 loopName);
     }
