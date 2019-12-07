@@ -59,6 +59,44 @@ void kernel_sizing(dim3& blocks, dim3& threads) {
   blocks.y = blocks.z = 1;
 }
 
+__global__ void deserialize_isupdate(uint8_t* buffer,
+                                     DynamicBitset* __restrict__ is_updated,
+                                     index_type is_updated_size) {
+  unsigned tid       = TID_1D;
+  unsigned nthreads  = TOTAL_THREADS_1D;
+
+  for (index_type src = 0+tid; src < is_updated_size; src += nthreads) {
+    ((uint64_t *)is_updated)[src] = ((uint64_t *)buffer)[src];
+    printf("\t\tisupdate[%d]=%d\n", src, ((uint64_t *)is_updated)[src]);
+  }
+}
+
+template <typename OffsetIteratorType>
+__global__ void deserialize_offsets(uint8_t* buffer,
+                                    const OffsetIteratorType offsets,
+                                    index_type offset_size) {
+  unsigned tid       = TID_1D;
+  unsigned nthreads  = TOTAL_THREADS_1D;
+
+  for (index_type src = 0+tid; src < offset_size; src += nthreads) {
+    offsets[src] = ((uint32_t *)buffer)[src];
+    printf("\t\toffsets[%d]=%d\n", src, offsets[src]);
+  }
+}
+
+template <typename DataType>
+__global__ void deserialize_data(uint8_t* buffer,
+                                 DataType* __restrict__ data,
+                                 index_type data_size) {
+  unsigned tid       = TID_1D;
+  unsigned nthreads  = TOTAL_THREADS_1D;
+
+  for (index_type src = 0+tid; src < data_size; src += nthreads) {
+    data[src] = ((DataType *)buffer)[src];
+    printf("\t\tdata[%d]=%d\n", src, data[src]);
+  }
+}
+
 template <typename DataType, typename OffsetIteratorType>
 __global__ void deserialize_data(uint8_t* buffer,
                                  index_type buffer_size, 
@@ -71,20 +109,20 @@ __global__ void deserialize_data(uint8_t* buffer,
 
   uint64_t is_updated_size;
   index_type offset = 0;
-  //memcpy(&is_updated_size, buffer, sizeof(uint64_t));
-  is_updated_size = *(uint64_t *)(buffer+offset);
+  memcpy(&is_updated_size, buffer, sizeof(uint64_t));
+  //is_updated_size = *(uint64_t *)(buffer+offset);
   //printf("\tReceived data size: %d\n", is_updated_size);
   offset += sizeof(uint64_t);
   memcpy(is_updated, buffer+offset, sizeof(uint64_t)*is_updated_size);
   offset += sizeof(uint64_t)*is_updated_size;
 
-  //int update_front = (is_updated_size>10)?10:is_updated_size;
-  //for (index_type src = 0+tid; src < is_updated_size; src += nthreads) {
+  int update_front = (is_updated_size>10)?10:is_updated_size;
+  for (index_type src = 0+tid; src < is_updated_size; src += nthreads) {
     //if (src < 10) {
-  //    printf("\t\t Received is_updated src: (%d/%d), val: %d\n", src, 
-  //           is_updated_size, is_updated[src]); 
+      printf("\t\t Received is_updated src: (%d/%d), val: %d\n", src, 
+             is_updated_size, is_updated[src]); 
     //}
-  //}
+  }
 
   uint64_t offset_size;
   memcpy(&offset_size, buffer+offset, sizeof(uint64_t));
@@ -92,27 +130,60 @@ __global__ void deserialize_data(uint8_t* buffer,
   memcpy(offsets, buffer+offset, sizeof(uint32_t)*offset_size);
   offset += sizeof(uint32_t)*offset_size;
   
-  //for (index_type src = 0+tid; src < offset_size; src += nthreads) {
+  for (index_type src = 0+tid; src < offset_size; src += nthreads) {
     //if (src < 10) {
-  //    printf("\t\t Received offset src: (%d/%d), val: %d\n", src, offset_size, offsets[src]);
+      printf("\t\t Received offset src: (%d/%d), val: %d\n", src, offset_size, offsets[src]);
     //}
-  //}
+  }
   
   uint64_t data_size;
   memcpy(&data_size, buffer+offset, sizeof(uint64_t));
   offset += sizeof(uint64_t);
   memcpy(data, buffer+offset, sizeof(DataType)*data_size);
 
-  //for (index_type src = 0+tid; src < data_size; src += nthreads) {
+  for (index_type src = 0+tid; src < data_size; src += nthreads) {
     //if (src < 10) {
-  //    printf("\t\t Received data src: (%d/%d), val: %d\n", src, data_size, data[src]);
+      printf("\t\t Received data src: (%d/%d), val: %d\n", src, data_size, data[src]);
     //}
-  //}
+  }
 
   //printf("Received data size: %d\n", data_size);
 }
 
+__global__ void serialize_isupdate(uint8_t* buffer,
+                                   DynamicBitset* __restrict__ is_updated,
+                                   index_type is_updated_size) {
+  unsigned tid       = TID_1D;
+  unsigned nthreads  = TOTAL_THREADS_1D;
+  for (index_type src = 0+tid; src < is_updated_size; src += nthreads){
+    ((uint64_t *)buffer)[src] = ((uint64_t *)is_updated)[src];
+    printf("\t\tSent: isupdate buffer[%d]=%d\n", src, ((uint64_t *)buffer)[src]);
+  }
+}
 
+template <typename OffsetIteratorType>
+__global__ void serialize_offsets(uint8_t* buffer,
+                                  const OffsetIteratorType offsets,
+                                  index_type offset_size) {
+  unsigned tid       = TID_1D;
+  unsigned nthreads  = TOTAL_THREADS_1D;
+  for (index_type src = 0+tid; src < offset_size; src += nthreads){
+    ((uint32_t *)buffer)[src] = offsets[src];
+    printf("\t\tSent: offsets buffer[%d]=%d\n", src, ((uint32_t *)buffer)[src]);
+  }
+}
+
+template <typename DataType>
+__global__ void serialize_data(uint8_t* buffer,
+                               DataType* __restrict__ data,
+                               index_type data_size) {
+  unsigned tid       = TID_1D;
+  unsigned nthreads  = TOTAL_THREADS_1D;
+  for (index_type src = 0+tid; src < data_size; src += nthreads){
+    ((DataType *)buffer)[src] = data[src];
+    printf("\t\tSent: data buffer[%d]=%d\n", src, ((DataType *)buffer)[src]);
+  }
+}
 
 template <typename DataType, typename OffsetIteratorType>
 __global__ void serialize_data(uint8_t* buffer,
@@ -128,7 +199,7 @@ __global__ void serialize_data(uint8_t* buffer,
   index_type offset = 0;
 
   // 1--
-  //((uint64_t *)buffer) = is_updated_size;
+  ((uint64_t *)buffer)[0] = is_updated_size;
   memcpy(buffer, &is_updated_size, sizeof(uint64_t));
   //printf("\tSent is updated size: %d\n", is_updated_size);
   offset += sizeof(uint64_t);
@@ -618,7 +689,7 @@ void gpuDirectSend(struct CUDA_Context_Common* ctx, size_t data_size,
   dim3 threads;
   kernel_sizing(blocks, threads);
 
-  uint8_t* gpu_buffer;
+  uint8_t* gpu_buffer, *gpu_buffer_pointer;
   size_t offset_size = ctx->offsets.size();
   size_t is_updated_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
   // size info + offsets + size_info + bitset + size_info + data
@@ -644,11 +715,38 @@ void gpuDirectSend(struct CUDA_Context_Common* ctx, size_t data_size,
   CUDA_SAFE_CALL(cudaHostAlloc(&gpu_buffer, buffer_size, 
                                cudaHostAllocPortable)); 
 
+  gpu_buffer_pointer = gpu_buffer;
+  // is_updated assign (uint64_t)
+  cudaMemcpy(gpu_buffer_pointer, &is_updated_size,
+             sizeof(uint64_t), cudaMemcpyDefault);
+  gpu_buffer_pointer += sizeof(uint64_t);
+  serialize_isupdate<<<blocks, threads>>>
+     (gpu_buffer_pointer, ctx->is_updated.gpu_rd_ptr(),
+      is_updated_size);
+  gpu_buffer_pointer += sizeof(uint64_t)*is_updated_size;
+
+  // offset assign (uint32_t)
+  cudaMemcpy(gpu_buffer_pointer, &offset_size,
+             sizeof(uint64_t), cudaMemcpyDefault);
+  gpu_buffer_pointer += sizeof(uint64_t);
+  serialize_offsets<<<blocks, threads>>>
+     (gpu_buffer_pointer, ctx->offsets.device_ptr(), offset_size);
+  gpu_buffer_pointer += sizeof(uint32_t)*offset_size;
+
+  // data assign (uint32_t)
+  cudaMemcpy(gpu_buffer_pointer, &data_size,
+             sizeof(uint64_t), cudaMemcpyDefault);
+  gpu_buffer_pointer += sizeof(uint64_t);
+  serialize_data<<<blocks, threads>>>
+      (gpu_buffer_pointer, shared_data->device_ptr(), data_size);
+
+  /*
   serialize_data<<<blocks, threads>>>(gpu_buffer,
                                       ctx->is_updated.gpu_rd_ptr(),
                                       is_updated_size, ctx->offsets.device_ptr(),
                                       offset_size,
                                       shared_data->device_ptr(), data_size);
+                                      */
   printf("\n");
   printf("To ID: %d\n", to_id);
   printf("Offset size (64bits): %d\n", ctx->offsets.size());
@@ -781,10 +879,45 @@ size_t gpuDirectRecv(struct CUDA_Context_Common* ctx,
   //MPI_Waitall(2, req_list, MPI_STATUS_IGNORE);
 
 
-  deserialize_data<<<blocks, threads>>>(gpu_buffer, num_received,
-                                        ctx->is_updated.gpu_wr_ptr(),
-                                        ctx->offsets.device_ptr(),
-                                        shared_data->device_ptr()); 
+  uint64_t is_updated_size, offset_size, data_size;
+  uint64_t buf_offset = 0;
+  //TODO CUDA SAFE CALL
+  // is_update assign
+  cudaMemcpy(&is_updated_size, gpu_buffer, sizeof(uint64_t),
+             cudaMemcpyDefault);
+  buf_offset += sizeof(uint64_t);
+  deserialize_isupdate<<<blocks, threads>>>(
+        gpu_buffer+buf_offset, ctx->is_updated.gpu_wr_ptr(),
+        is_updated_size);
+  buf_offset += sizeof(uint64_t)*is_updated_size;
+  printf("is_updated_size: %d\n", is_updated_size);
+
+  // offset assign
+  cudaMemcpy(&offset_size, gpu_buffer+buf_offset, sizeof(uint64_t),
+             cudaMemcpyDefault);
+  buf_offset += sizeof(uint64_t);
+  deserialize_offsets<<<blocks, threads>>>(
+        gpu_buffer+buf_offset, ctx->offsets.device_ptr(),
+        offset_size);
+  buf_offset += sizeof(uint32_t)*offset_size;
+  printf("offset size: %d\n", offset_size);
+
+  // offset assign
+  cudaMemcpy(&data_size, gpu_buffer+buf_offset, sizeof(uint64_t),
+             cudaMemcpyDefault);
+  buf_offset += sizeof(uint64_t);
+  deserialize_data<<<blocks, threads>>>(
+        gpu_buffer+buf_offset, shared_data->device_ptr(),
+        data_size);
+  buf_offset += sizeof(DataType)*offset_size;
+  printf("data size: %d\n", data_size);
+
+
+
+  //deserialize_data<<<blocks, threads>>>(gpu_buffer, num_received,
+  //                                      ctx->is_updated.gpu_wr_ptr(),
+  //                                      ctx->offsets.device_ptr(),
+  //                                      shared_data->device_ptr()); 
 
   printf("deserialize done id %d\n", ctx->id);
   /*
@@ -929,6 +1062,7 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
     }
   } else { // bitsetData || offsetsData */
  
+  /*
   printf("set_subset! %d\n", ctx->id);
   if (op == setOp) {
     batch_set_subset<DataType, sharedType><<<blocks, threads>>>(
@@ -948,6 +1082,7 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
   }
   //}
   check_cuda_kernel;
+  */
   printf("Done? %d\n", ctx->id);
   // timer2.stop();
   // timer.stop();
