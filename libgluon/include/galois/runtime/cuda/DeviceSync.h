@@ -669,7 +669,7 @@ void gpuDirectSend(struct CUDA_Context_Common* ctx, size_t bit_set_count,
   //!
   size_t offset = 0;
   // serialize data_mode
-  cudaMemcpy(gpu_buffer, &data_mode,
+  cudaMemcpyAsync(gpu_buffer, &data_mode,
              sizeof(DataCommMode), cudaMemcpyDefault);
   offset += sizeof(DataCommMode);
 
@@ -683,31 +683,31 @@ void gpuDirectSend(struct CUDA_Context_Common* ctx, size_t bit_set_count,
   }
 
   if (data_mode != onlyData) {
-    cudaMemcpy(gpu_buffer+offset, &bit_set_count,
+    cudaMemcpyAsync(gpu_buffer+offset, &bit_set_count,
         sizeof(bit_set_count), cudaMemcpyDefault);
     offset += sizeof(bit_set_count);
   }
 
   if ((data_mode == gidsData) || (data_mode == offsetsData)) {
-    cudaMemcpy(gpu_buffer+offset, &bit_set_count,
+    cudaMemcpyAsync(gpu_buffer+offset, &bit_set_count,
        sizeof(bit_set_count), cudaMemcpyDefault);
     offset += sizeof(bit_set_count);
     // OFFSET copy
-    cudaMemcpy(gpu_buffer + offset, ctx->offsets.device_ptr(), bit_set_count*sizeof(unsigned int),
+    cudaMemcpyAsync(gpu_buffer + offset, ctx->offsets.device_ptr(), bit_set_count*sizeof(unsigned int),
                cudaMemcpyDefault);
     //serialize_offsets<<<blocks, threads>>>
     //  (gpu_buffer + offset, ctx->offsets.device_ptr(), bit_set_count);
     offset += sizeof(unsigned int)*bit_set_count;
   } else if ((data_mode == bitsetData)) {
-    cudaMemcpy(gpu_buffer+offset, &num_shared,
+    cudaMemcpyAsync(gpu_buffer+offset, &num_shared,
         sizeof(num_shared), cudaMemcpyDefault);
     offset += sizeof(num_shared);
-    cudaMemcpy(gpu_buffer+offset, &vec_size,
+    cudaMemcpyAsync(gpu_buffer+offset, &vec_size,
         sizeof(vec_size), cudaMemcpyDefault);
     offset += sizeof(vec_size);
     //cudaMemcpy(gpu_buffer+offset, ctx->is_updated.gpu_rd_ptr(),
     //           is_updated_size*sizeof(uint64_t), cudaMemcpyDefault);
-    cudaMemcpy(gpu_buffer+offset, ctx->is_updated.gpu_rd_ptr()->get_vec(),
+    cudaMemcpyAsync(gpu_buffer+offset, ctx->is_updated.gpu_rd_ptr()->get_vec(),
                vec_size*sizeof(uint64_t), cudaMemcpyDefault);
     //ctx->is_updated.gpu_rd_ptr().copy_to_buffer(gpu_buffer + offset);
 
@@ -720,10 +720,10 @@ void gpuDirectSend(struct CUDA_Context_Common* ctx, size_t bit_set_count,
     offset += sizeof(uint64_t)*vec_size;
   }
   // data assign (uint32_t)
-  cudaMemcpy(gpu_buffer+offset, &bit_set_count,
+  cudaMemcpyAsync(gpu_buffer+offset, &bit_set_count,
              sizeof(bit_set_count), cudaMemcpyDefault);
   offset += sizeof(bit_set_count);
-  cudaMemcpy(gpu_buffer+offset, shared_data->device_ptr(),
+  cudaMemcpyAsync(gpu_buffer+offset, shared_data->device_ptr(),
              sizeof(DataType)*bit_set_count,
              cudaMemcpyDefault);
   //serialize_data<<<blocks, threads>>>
@@ -840,7 +840,7 @@ void gpuDirectRecv(struct CUDA_Context_Common* ctx,
   uint64_t vec_size, offset_size, data_size;
   uint64_t offset = 0;
 
-  cudaMemcpy(&data_mode, gpu_buffer, sizeof(DataCommMode),
+  cudaMemcpyAsync(&data_mode, gpu_buffer, sizeof(DataCommMode),
              cudaMemcpyDefault);
   offset += sizeof(DataCommMode);
 
@@ -852,7 +852,7 @@ void gpuDirectRecv(struct CUDA_Context_Common* ctx,
 
 	//assert(data_mode != noData);
   if (data_mode != onlyData) {
-    cudaMemcpy(&bit_set_count, gpu_buffer + offset,
+    cudaMemcpyAsync(&bit_set_count, gpu_buffer + offset,
                sizeof(bit_set_count), cudaMemcpyDefault);
     offset += sizeof(bit_set_count);
   } else {
@@ -866,7 +866,7 @@ void gpuDirectRecv(struct CUDA_Context_Common* ctx,
         gpu_buffer+offset, ctx->offsets.device_ptr(),
         bit_set_count);
         */
-    cudaMemcpy(ctx->offsets.device_ptr(),
+    cudaMemcpyAsync(ctx->offsets.device_ptr(),
                gpu_buffer+offset, bit_set_count*sizeof(unsigned int),
                cudaMemcpyDefault);
     offset += bit_set_count * sizeof(unsigned int);
@@ -880,7 +880,7 @@ void gpuDirectRecv(struct CUDA_Context_Common* ctx,
     //cudaMemcpy(ctx->is_updated.gpu_wr_ptr(), gpu_buffer + offset,
     //          sizeof(uint64_t) * vec_size, cudaMemcpyDefault);
 
-    cudaMemcpy(ctx->is_updated.gpu_wr_ptr()->get_vec(), gpu_buffer + offset,
+    cudaMemcpyAsync(ctx->is_updated.gpu_wr_ptr()->get_vec(), gpu_buffer + offset,
                sizeof(uint64_t) * vec_size, cudaMemcpyDefault);
     //ctx->is_updated.gpu_wr_ptr()->copy_from_buffer(gpu_buffer + offset);
     offset += sizeof(uint64_t) * vec_size;
@@ -892,7 +892,7 @@ void gpuDirectRecv(struct CUDA_Context_Common* ctx,
   }
 
   offset += sizeof(bit_set_count);
-  cudaMemcpy(shared_data->device_ptr(), gpu_buffer+offset,
+  cudaMemcpyAsync(shared_data->device_ptr(), gpu_buffer+offset,
              bit_set_count*sizeof(DataType), cudaMemcpyDefault);
   /*
   deserialize_data<<<blocks, threads>>>(
