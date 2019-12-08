@@ -2229,7 +2229,7 @@ private:
     Tset.start();
 
     if (num > 0) {
-      printf("That's what I want\n");
+      //printf("That's what I want\n");
       DataCommMode data_mode;
       // 1st deserialize gets data mode
       //galois::runtime::gDeserialize(buf, data_mode);
@@ -2343,7 +2343,6 @@ private:
 
     //if (num > 0 && !isGPU) { // only enter if we expect message from that host
     if (num > 0) {
-      printf("Nope-\n");
       DataCommMode data_mode;
       // 1st deserialize gets data mode
       //galois::runtime::gDeserialize(buf, data_mode);
@@ -2518,7 +2517,7 @@ private:
 	    if (nothingToRecv(x, syncType, writeLocation, readLocation))
 		    continue;
 	    
-      printf("SyncNetRC: host: %d target: %d\n", id, x);
+      //printf("SyncNetRC: host: %d target: %d\n", id, x);
       // Generate empty data.
 	    decltype(net.getRecieveBuffer()) p;
 	    p = net.getRecieveBuffer();
