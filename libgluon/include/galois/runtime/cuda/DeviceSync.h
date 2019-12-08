@@ -66,8 +66,21 @@ __global__ void deserialize_isupdate(uint8_t* buffer,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
 
+  int test;
   for (index_type src = 0+tid; src < is_updated_size; src += nthreads) {
-    ((uint64_t *)is_updated)[src] = ((uint64_t *)buffer)[src];
+    //is_updated[src] = *reinterpret_cast<uint64_t *>(buffer[src]);
+    //test = is_updated[src];
+    //((uint64_t*) is_updated)[src] = ((uint64_t *)buffer)[src];
+    /*
+    is_updated[src]  = (((uint64_t)buffer[src+tid*8+7]) << 56) & 0xFF;
+    is_updated[src] |= (((uint64_t)buffer[src+tid*8+6]) << 48) & 0xFF;
+    is_updated[src] |= (((uint64_t)buffer[src+tid*8+5]) << 40) & 0xFF;
+    is_updated[src] |= (((uint64_t)buffer[src+tid*8+4]) << 32) & 0xFF;                    
+    is_updated[src] |= (((uint64_t)buffer[src+tid*8+3]) << 24) & 0xFF;
+    is_updated[src] |= (((uint64_t)buffer[src+tid*8+2]) << 16) & 0xFF;
+    is_updated[src] |= (((uint64_t)buffer[src+tid*8+1]) << 8) & 0xFF;
+    is_updated[src] |= (((uint64_t)buffer[src+tid*8]) & 0xFF);
+    */
 #ifdef GPU_LOG
     printf("\t\tisupdate[%d]=%d\n", src, ((uint64_t *)is_updated)[src]);
 #endif
@@ -82,7 +95,11 @@ __global__ void deserialize_offsets(uint8_t* buffer,
   unsigned nthreads  = TOTAL_THREADS_1D;
 
   for (index_type src = 0+tid; src < offset_size; src += nthreads) {
-    offsets[src] = ((uint32_t *)buffer)[src];
+    //offsets[src] = ((uint32_t *)buffer)[src];
+    offsets[src] = ((((uint32_t)buffer[src+tid*4+3]) << 24) & 0xFF)
+                   | ((((uint32_t)buffer[src+tid*4+2]) << 16) & 0xFF)
+                   | ((((uint32_t)buffer[src+tid*4+1]) << 8) & 0xFF)
+                   | (((uint32_t)buffer[src+tid*4]) & 0xFF); 
 #ifdef GPU_LOG
     printf("\t\toffsets[%d]=%d\n", src, offsets[src]);
 #endif
@@ -97,79 +114,36 @@ __global__ void deserialize_data(uint8_t* buffer,
   unsigned nthreads  = TOTAL_THREADS_1D;
 
   for (index_type src = 0+tid; src < data_size; src += nthreads) {
-    data[src] = ((DataType *)buffer)[src];
+    //data[src] = ((DataType *)buffer)[src];
+      data[src] = ((((uint32_t)buffer[src+tid*4+3]) << 24) & 0xFF)
+                 | ((((uint32_t)buffer[src+tid*4+2]) << 16) & 0xFF)
+                 | ((((uint32_t)buffer[src+tid*4+1]) << 8) & 0xFF)
+                 | (((uint32_t)buffer[src+tid*4]) & 0xFF);
 #ifdef GPU_LOG
     printf("\t\tdata[%d]=%d\n", src, data[src]);
 #endif
   }
 }
 
-template <typename DataType, typename OffsetIteratorType>
-__global__ void deserialize_data(uint8_t* buffer,
-                                 index_type buffer_size, 
-                                 DynamicBitset* __restrict__ is_updated,
-                                 const OffsetIteratorType offsets,
-                                 DataType* __restrict__ data) {
-  if (buffer == NULL) return ;
-  unsigned tid       = TID_1D;
-  unsigned nthreads  = TOTAL_THREADS_1D;
-
-  uint64_t is_updated_size;
-  index_type offset = 0;
-  memcpy(&is_updated_size, buffer, sizeof(uint64_t));
-  //is_updated_size = *(uint64_t *)(buffer+offset);
-  //printf("\tReceived data size: %d\n", is_updated_size);
-  offset += sizeof(uint64_t);
-  memcpy(is_updated, buffer+offset, sizeof(uint64_t)*is_updated_size);
-  offset += sizeof(uint64_t)*is_updated_size;
-
-  int update_front = (is_updated_size>10)?10:is_updated_size;
-  for (index_type src = 0+tid; src < is_updated_size; src += nthreads) {
-    //if (src < 10) {
-#ifdef GPU_LOG
-      printf("\t\t Received is_updated src: (%d/%d), val: %d\n", src, 
-             is_updated_size, is_updated[src]); 
-#endif
-    //}
-  }
-
-  uint64_t offset_size;
-  memcpy(&offset_size, buffer+offset, sizeof(uint64_t));
-  offset += sizeof(uint64_t);
-  memcpy(offsets, buffer+offset, sizeof(uint32_t)*offset_size);
-  offset += sizeof(uint32_t)*offset_size;
-  
-  for (index_type src = 0+tid; src < offset_size; src += nthreads) {
-    //if (src < 10) {
-#ifdef GPU_LOG
-      printf("\t\t Received offset src: (%d/%d), val: %d\n", src, offset_size, offsets[src]);
-#endif
-    //}
-  }
-  
-  uint64_t data_size;
-  memcpy(&data_size, buffer+offset, sizeof(uint64_t));
-  offset += sizeof(uint64_t);
-  memcpy(data, buffer+offset, sizeof(DataType)*data_size);
-
-  for (index_type src = 0+tid; src < data_size; src += nthreads) {
-    //if (src < 10) {    
-#ifdef GPU_LOG
-      printf("\t\t Received data src: (%d/%d), val: %d\n", src, data_size, data[src]);
-#endif
-    //}
-  }
-
-  //printf("Received data size: %d\n", data_size);
-}
-
 __global__ void serialize_isupdate(uint8_t* buffer,
-                                   DynamicBitset* __restrict__ is_updated,
+                                   uint64_t* __restrict__ is_updated,
                                    index_type is_updated_size) {
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
+  uint64_t test = 0;
   for (index_type src = 0+tid; src < is_updated_size; src += nthreads){
-    ((uint64_t *)buffer)[src] = ((uint64_t *)is_updated)[src];
+    buffer[src+7+8*tid] = (uint8_t)((is_updated[src] >> 56) & 0xFF);
+    buffer[src+6+8*tid] = (uint8_t)((is_updated[src] >> 48) & 0xFF);
+    buffer[src+5+8*tid] = (uint8_t)((is_updated[src] >> 40) & 0xFF);
+    buffer[src+4+8*tid] = (uint8_t)((is_updated[src] >> 32) & 0xFF);
+    buffer[src+3+8*tid] = (uint8_t)((is_updated[src] >> 24) & 0xFF);
+    buffer[src+2+8*tid] = (uint8_t)((is_updated[src] >> 16) & 0xFF);
+    buffer[src+1+8*tid] = (uint8_t)((is_updated[src] >> 8) & 0xFF);
+    buffer[src+0+8*tid] = (uint8_t)((is_updated[src]) & 0xFF);
+    //test = is_updated[src];
+    //test = ((uint64_t *)buffer)[src];
+    //((uint64_t *)buffer)[src] = ((uint64_t*)is_updated)[src];
+
 #ifdef GPU_LOG
     printf("\t\tSent: isupdate buffer[%d]=%d\n", src, ((uint64_t *)buffer)[src]);
 #endif
@@ -183,7 +157,11 @@ __global__ void serialize_offsets(uint8_t* buffer,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   for (index_type src = 0+tid; src < offset_size; src += nthreads){
-    ((uint32_t *)buffer)[src] = offsets[src];
+    //((uint32_t *)buffer)[src] = offsets[src];
+    buffer[src+3+4*tid] = (uint8_t)((offsets[src] >> 24) & 0xFF);
+    buffer[src+2+4*tid] = (uint8_t)((offsets[src] >> 16) & 0xFF);
+    buffer[src+1+4*tid] = (uint8_t)((offsets[src] >> 8) & 0xFF);
+    buffer[src+0+4*tid] = (uint8_t)(offsets[src] & 0xFF);
 #ifdef GPU_LOG
     printf("\t\tSent: offsets buffer[%d]=%d\n", src, ((uint32_t *)buffer)[src]);
 #endif
@@ -197,74 +175,15 @@ __global__ void serialize_data(uint8_t* buffer,
   unsigned tid       = TID_1D;
   unsigned nthreads  = TOTAL_THREADS_1D;
   for (index_type src = 0+tid; src < data_size; src += nthreads){
-    ((DataType *)buffer)[src] = data[src];
+    //((DataType *)buffer)[src] = data[src];
+    buffer[src+3+4*tid] = (uint8_t)((data[src] >> 24) & 0xFF);
+    buffer[src+2+4*tid] = (uint8_t)((data[src] >> 16) & 0xFF);
+    buffer[src+1+4*tid] = (uint8_t)((data[src] >> 8) & 0xFF);
+    buffer[src+0+4*tid] = (uint8_t)(data[src] & 0xFF);
 #ifdef GPU_LOG
     printf("\t\tSent: data buffer[%d]=%d\n", src, ((DataType *)buffer)[src]);
 #endif
   }
-}
-
-template <typename DataType, typename OffsetIteratorType>
-__global__ void serialize_data(uint8_t* buffer,
-                               DynamicBitset* __restrict__ is_updated,
-                               index_type is_updated_size,
-                               const OffsetIteratorType offsets,
-                               index_type offset_size,
-                               DataType* __restrict__ data,
-                               index_type data_size) {
-  unsigned tid       = TID_1D;
-  unsigned nthreads  = TOTAL_THREADS_1D;
-  index_type src;
-  index_type offset = 0;
-
-  // 1--
-  ((uint64_t *)buffer)[0] = is_updated_size;
-  memcpy(buffer, &is_updated_size, sizeof(uint64_t));
-  //printf("\tSent is updated size: %d\n", is_updated_size);
-  offset += sizeof(uint64_t);
-  for (src = 0+tid;
-       src < is_updated_size; src += nthreads) {
-    memcpy(buffer+offset+(sizeof(uint64_t)*src), &is_updated[src], sizeof(uint64_t));
-    //((uint64_t *)(buffer+offset+(sizeof(uint64_t)*src))) = is_updated[src];
-    
-    /*
-    if (src < 10) {
-      printf("\t\t Front- Sent is_updated src: %d, val: %d\n", src, is_updated[src]);
-    }
-    */
-  }
-  offset += sizeof(uint64_t)*is_updated_size;
-
-  // 2--
-  //(uint64_t *)(buffer+offset) = offset_size;
-  memcpy(buffer+offset, &offset_size, sizeof(uint64_t));
-  //printf("sent offset size: %d\n", offset_size);
-  offset += sizeof(uint64_t);
-  for (src = 0+tid;
-       src < offset_size; src += nthreads) {
-    memcpy(buffer+offset+(sizeof(uint32_t)*src), &offsets[src],
-           sizeof(uint32_t));
-    //if (src < 10) {
-    //  printf("\t\t Front- Sent offset src: %d, val: %d\n", src, offsets[src]);
-    //}
-  }
-  offset += sizeof(uint32_t)*offset_size;
-
-  // 3--
-  //(uint64_t *)(buffer+offset) = data_size;
-  //printf("Data size: %d\n", data_size);
-  memcpy(buffer+offset, &data_size, sizeof(uint64_t));
-  offset += sizeof(uint64_t);
-
-  for (src = 0+tid;
-       src < data_size; src += nthreads) {
-    memcpy(buffer+offset+(sizeof(DataType)*src), &data[src], sizeof(DataType)); 
-
-    //if (src < 10) {
-    //  printf("\t\t Front- Sent data src: %d, val: %d\n", src, data[src]);
-    //}
-  }
-  offset += sizeof(DataType)*data_size;
 }
 
 template <typename DataType>
@@ -709,68 +628,106 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
 }
 
 template <typename DataType>
-void gpuDirectSend(struct CUDA_Context_Common* ctx, size_t data_size,
+void gpuDirectSend(struct CUDA_Context_Common* ctx, size_t bit_set_count,
                    size_t num_shared, DeviceOnly<DataType>* shared_data,
                    uint8_t* send_buffer, unsigned to_id,
                    DataCommMode data_mode) {
-  //if (data_mode == noData) {
-  //  return ;
-  //}
-
   dim3 blocks;
   dim3 threads;
   kernel_sizing(blocks, threads);
 
   uint8_t* gpu_buffer, *gpu_buffer_pointer;
   size_t offset_size = ctx->offsets.size();
-  size_t is_updated_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
+  size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
   // size info + offsets + size_info + bitset + size_info + data
-  /*size_t buffer_size = sizeof(uint64_t)+
-                       offset_size*sizeof(uint32_t)+
-                       sizeof(uint64_t)+
-                       is_updated_size*sizeof(uint64_t)+
-                       sizeof(uint64_t)+
-                       data_size*sizeof(DataType);
-                       */
 
-  /*size_t buffer_size = sizeof(uint64_t)+
-                       is_updated_size*sizeof(uint64_t);
-                       */
+  size_t buffer_size = sizeof(DataCommMode);
 
-  size_t buffer_size = sizeof(uint64_t)+
-                       is_updated_size*sizeof(uint64_t)+
-                       sizeof(uint64_t)+
-                       offset_size*sizeof(uint32_t)+
-                       sizeof(uint64_t)+
-                       data_size*sizeof(DataType);
+  //!
+  //! Calculate bitset size.
+  //!
+  if (data_mode != onlyData) {
+    buffer_size += sizeof(bit_set_count);
+  }
+  if ((data_mode == gidsData) || (data_mode == offsetsData)) {
+    buffer_size += sizeof(bit_set_count);
+    buffer_size += bit_set_count * sizeof(unsigned int);
+  } else if ((data_mode == bitsetData)) {
+    buffer_size += sizeof(num_shared);
+    buffer_size += sizeof(vec_size);
+    buffer_size += vec_size * sizeof(uint64_t);
+  }
+  buffer_size += sizeof(bit_set_count);
+  //buffer_size += bit_set_count * sizeof(DataType); 
+  buffer_size += bit_set_count * sizeof(DataType); 
 
   CUDA_SAFE_CALL(cudaHostAlloc(&gpu_buffer, buffer_size, 
                                cudaHostAllocPortable)); 
 
-  gpu_buffer_pointer = gpu_buffer;
-  // is_updated assign (uint64_t)
-  cudaMemcpy(gpu_buffer_pointer, &is_updated_size,
-             sizeof(uint64_t), cudaMemcpyDefault);
-  gpu_buffer_pointer += sizeof(uint64_t);
-  serialize_isupdate<<<blocks, threads>>>
-     (gpu_buffer_pointer, ctx->is_updated.gpu_rd_ptr(),
-      is_updated_size);
-  gpu_buffer_pointer += sizeof(uint64_t)*is_updated_size;
+  //!
+  //! Serialize Data.
+  //!
+  size_t offset = 0;
+  // serialize data_mode
+  cudaMemcpy(gpu_buffer, &data_mode,
+             sizeof(DataCommMode), cudaMemcpyDefault);
+  offset += sizeof(DataCommMode);
 
-  // offset assign (uint32_t)
-  cudaMemcpy(gpu_buffer_pointer, &offset_size,
-             sizeof(uint64_t), cudaMemcpyDefault);
-  gpu_buffer_pointer += sizeof(uint64_t);
-  serialize_offsets<<<blocks, threads>>>
-     (gpu_buffer_pointer, ctx->offsets.device_ptr(), offset_size);
-  gpu_buffer_pointer += sizeof(uint32_t)*offset_size;
+  if (data_mode == noData) {
+    check_cuda_kernel;
+    MPI_Isend(gpu_buffer, sizeof(DataCommMode), MPI_BYTE, to_id,
+        10000, MPI_COMM_WORLD,
+        &send_req); 
+    std::cout << "\t\t **** gpudirect send tries to send no-data\n";
+    return ;
+  }
 
+  if (data_mode != onlyData) {
+    cudaMemcpy(gpu_buffer+offset, &bit_set_count,
+        sizeof(bit_set_count), cudaMemcpyDefault);
+    offset += sizeof(bit_set_count);
+  }
+
+  if ((data_mode == gidsData) || (data_mode == offsetsData)) {
+    cudaMemcpy(gpu_buffer+offset, &bit_set_count,
+       sizeof(bit_set_count), cudaMemcpyDefault);
+    offset += sizeof(bit_set_count);
+    // OFFSET copy
+    cudaMemcpy(gpu_buffer + offset, ctx->offsets.device_ptr(), bit_set_count*sizeof(unsigned int),
+               cudaMemcpyDefault);
+    //serialize_offsets<<<blocks, threads>>>
+    //  (gpu_buffer + offset, ctx->offsets.device_ptr(), bit_set_count);
+    offset += sizeof(unsigned int)*bit_set_count;
+  } else if ((data_mode == bitsetData)) {
+    cudaMemcpy(gpu_buffer+offset, &num_shared,
+        sizeof(num_shared), cudaMemcpyDefault);
+    offset += sizeof(num_shared);
+    cudaMemcpy(gpu_buffer+offset, &vec_size,
+        sizeof(vec_size), cudaMemcpyDefault);
+    offset += sizeof(vec_size);
+    //cudaMemcpy(gpu_buffer+offset, ctx->is_updated.gpu_rd_ptr(),
+    //           is_updated_size*sizeof(uint64_t), cudaMemcpyDefault);
+    cudaMemcpy(gpu_buffer+offset, ctx->is_updated.gpu_rd_ptr()->get_vec(),
+               vec_size*sizeof(uint64_t), cudaMemcpyDefault);
+    //ctx->is_updated.gpu_rd_ptr().copy_to_buffer(gpu_buffer + offset);
+
+    //ctx->is_updated.gpu_rd_ptr().copy_to_gpu(gpu_buffer+offset);
+    //check_cuda_kernel;
+    //serialize_isupdate<<<blocks, threads>>>
+    //serialize_isupdate<<<blocks, 1>>>
+    //  (gpu_buffer+offset, ctx->is_updated.gpu_rd_ptr()->get_vec(),
+    //   is_updated_size);
+    offset += sizeof(uint64_t)*vec_size;
+  }
   // data assign (uint32_t)
-  cudaMemcpy(gpu_buffer_pointer, &data_size,
-             sizeof(uint64_t), cudaMemcpyDefault);
-  gpu_buffer_pointer += sizeof(uint64_t);
-  serialize_data<<<blocks, threads>>>
-      (gpu_buffer_pointer, shared_data->device_ptr(), data_size);
+  cudaMemcpy(gpu_buffer+offset, &bit_set_count,
+             sizeof(bit_set_count), cudaMemcpyDefault);
+  offset += sizeof(bit_set_count);
+  cudaMemcpy(gpu_buffer+offset, shared_data->device_ptr(),
+             sizeof(DataType)*bit_set_count,
+             cudaMemcpyDefault);
+  //serialize_data<<<blocks, threads>>>
+  //    (gpu_buffer + offset, shared_data->device_ptr(), bit_set_count);
 
   /*
   serialize_data<<<blocks, threads>>>(gpu_buffer,
@@ -779,25 +736,19 @@ void gpuDirectSend(struct CUDA_Context_Common* ctx, size_t data_size,
                                       offset_size,
                                       shared_data->device_ptr(), data_size);
                                       */
-  printf("\n");
-  printf("To ID: %d\n", to_id);
-  printf("Offset size (64bits): %d\n", ctx->offsets.size());
-  printf("Isupdated size (64bits): %d\n", ctx->is_updated.cpu_rd_ptr()->vec_size());
-  printf("Data size (%d): %d\n",sizeof(DataType), data_size);
-  printf("Required buffer size: %d\n", buffer_size);
+  printf("\tSend Request == \n");
+  printf("\t\tTo ID: %d\n", to_id);
+  printf("\t\tOffset size : %d\n", ctx->offsets.size());
+  printf("\t\tIsupdated size: %d\n", ctx->is_updated.cpu_rd_ptr()->vec_size());
+  printf("\t\tData size : %d\n", bit_set_count);
+  printf("\t\tRequired buffer size: %d\n", buffer_size);
   printf("\n");
 
+  check_cuda_kernel;
   //MPI_Send(gpu_buffer, buffer_size, MPI_BYTE, to_id, 10000, MPI_COMM_WORLD);
 
   MPI_Isend(gpu_buffer, buffer_size, MPI_BYTE, to_id, 10000, MPI_COMM_WORLD,
-            &send_req); 
-  
-  //MPI_Send(&test, 4, MPI_BYTE, to_id, 10000, MPI_COMM_WORLD);
-  /*
-  ctx->offsets.send_impi(data_size, to_id, 10000);
-  ctx->is_updated.gpu_rd_ptr()->send_impi(to_id, 10001);
-  shared_data->send_impi(data_size, to_id, 10002);
-  */
+            &send_req);   
 }
 
 template <typename DataType, SharedType sharedType, bool reset>
@@ -821,13 +772,9 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
   dim3 threads;
   kernel_sizing(blocks, threads);
 
-  //printf("Came here?\n");
-  // TODO NEW *v_size = shared->num_nodes[from_id];
-  //printf("v size: %d\n", *v_size);
-
   // calculate subset of bitset.
-  ctx->is_updated.cpu_rd_ptr()->resize(shared->num_nodes[from_id]);
-  ctx->is_updated.cpu_rd_ptr()->reset();
+  //ctx->is_updated.cpu_rd_ptr()->resize(shared->num_nodes[from_id]);
+  //ctx->is_updated.cpu_rd_ptr()->reset();
   batch_get_subset_bitset<<<blocks, threads>>>(
       shared->num_nodes[from_id], shared->nodes[from_id].device_ptr(),
       ctx->is_updated.gpu_rd_ptr(), field->is_updated.gpu_rd_ptr());
@@ -838,57 +785,38 @@ void batch_get_shared_field(struct CUDA_Context_Common* ctx,
       ctx->is_updated.gpu_rd_ptr(), v_size);
   *data_mode = get_data_mode<DataType>(*v_size, shared->num_nodes[from_id]);
 
-  /*
-  if ((*data_mode) == onlyData) {
-    *v_size = shared->num_nodes[from_id];
-    if (reset) {
-      batch_get_reset_subset<DataType><<<blocks, threads>>>(
-          *v_size, shared->nodes[from_id].device_ptr(),
-          shared_data->device_ptr(), field->data.gpu_wr_ptr(), i);
-    } else {
-      batch_get_subset<DataType><<<blocks, threads>>>(
-          *v_size, shared->nodes[from_id].device_ptr(),
-          shared_data->device_ptr(), field->data.gpu_rd_ptr());
-    }
-  } else { // bitsetData || offsetsData
-  */
-    if (reset) {
-      //std::cout << "reset\n";
-      batch_get_reset_subset<DataType><<<blocks, threads>>>(
-          *v_size, shared->nodes[from_id].device_ptr(),
-          ctx->offsets.device_ptr(), shared_data->device_ptr(),
-          field->data.gpu_wr_ptr(), i);
-    } else {
-      //std::cout << "no- reset\n";
-      batch_get_subset<DataType><<<blocks, threads>>>(
-          *v_size, shared->nodes[from_id].device_ptr(),
-          ctx->offsets.device_ptr(), shared_data->device_ptr(),
-          field->data.gpu_rd_ptr());
-    }
-  //}
+  if (reset) {
+    batch_get_reset_subset<DataType><<<blocks, threads>>>(
+        *v_size, shared->nodes[from_id].device_ptr(),
+        ctx->offsets.device_ptr(), shared_data->device_ptr(),
+        field->data.gpu_wr_ptr(), i);
+  } else {
+    batch_get_subset<DataType><<<blocks, threads>>>(
+        *v_size, shared->nodes[from_id].device_ptr(),
+        ctx->offsets.device_ptr(), shared_data->device_ptr(),
+        field->data.gpu_rd_ptr());
+  }
   check_cuda_kernel;
   gpuDirectSend(ctx, *v_size, shared->num_nodes[from_id], shared_data, send_buffer, from_id, *data_mode);
 }
 
 template <typename DataType>
-size_t gpuDirectRecv(struct CUDA_Context_Common* ctx,
+void gpuDirectRecv(struct CUDA_Context_Common* ctx,
+                   DataCommMode &data_mode,
+                   uint64_t &bit_set_count,
                    struct CUDA_Context_Shared* shared,
                    DeviceOnly<DataType>* shared_data,
-                   unsigned* from_id) {
+                   unsigned &from_id) {
   dim3 blocks;
   dim3 threads;
   kernel_sizing(blocks, threads);
 
   uint8_t* gpu_buffer;
   int flag = 0;
-  //size_t num_shared;
-  size_t num_shared = shared->num_nodes[*from_id];
-  printf("num_shared: %d\n",  num_shared);
+  uint64_t num_shared = shared->num_nodes[from_id];
   int num_received;
 
-  //printf("id %d Probe problem\n", ctx->id);
-  MPI_Probe(*from_id, 10000, MPI_COMM_WORLD, &recv_stat);
-  //printf("id %d Probe problem -- \n", ctx->id);
+  MPI_Probe(from_id, 10000, MPI_COMM_WORLD, &recv_stat);
   MPI_Get_count(&recv_stat, MPI_BYTE, &num_received);
 
   CUDA_SAFE_CALL(cudaHostAlloc(&gpu_buffer, num_received, 
@@ -900,149 +828,95 @@ size_t gpuDirectRecv(struct CUDA_Context_Common* ctx,
   MPI_Recv(gpu_buffer, num_received, MPI_BYTE,
            MPI_ANY_SOURCE, 10000, MPI_COMM_WORLD, &recv_stat);
 
-
-
   //MPI_Irecv(gpu_buffer, num_received, MPI_BYTE,
   //          MPI_ANY_SOURCE, 10000, MPI_COMM_WORLD, &recv_req);
-  printf("Receiver %d,from %d,  Received size: %d\n", ctx->id, *from_id, num_received);
   //MPI_Wait(&recv_req, MPI_STATUS_IGNORE);
   if (send_req != MPI_REQUEST_NULL) {
     //printf("id %d Here\n", ctx->id);
     MPI_Wait(&send_req, MPI_STATUS_IGNORE);
     send_req = MPI_REQUEST_NULL;
   }
-  //printf("id %d After wait\n", ctx->id);
-  //MPI_Waitall(2, req_list, MPI_STATUS_IGNORE);
 
+  uint64_t vec_size, offset_size, data_size;
+  uint64_t offset = 0;
 
-  uint64_t is_updated_size, offset_size, data_size;
-  uint64_t buf_offset = 0;
-  //TODO CUDA SAFE CALL
-  // is_update assign
-  cudaMemcpy(&is_updated_size, gpu_buffer, sizeof(uint64_t),
+  cudaMemcpy(&data_mode, gpu_buffer, sizeof(DataCommMode),
              cudaMemcpyDefault);
-  buf_offset += sizeof(uint64_t);
-  deserialize_isupdate<<<blocks, threads>>>(
-        gpu_buffer+buf_offset, ctx->is_updated.gpu_wr_ptr(),
-        is_updated_size);
-  buf_offset += sizeof(uint64_t)*is_updated_size;
-  printf("is_updated_size: %d\n", is_updated_size);
+  offset += sizeof(DataCommMode);
 
-  // offset assign
-  cudaMemcpy(&offset_size, gpu_buffer+buf_offset, sizeof(uint64_t),
-             cudaMemcpyDefault);
-  buf_offset += sizeof(uint64_t);
-  deserialize_offsets<<<blocks, threads>>>(
-        gpu_buffer+buf_offset, ctx->offsets.device_ptr(),
-        offset_size);
-  buf_offset += sizeof(uint32_t)*offset_size;
-  printf("offset size: %d\n", offset_size);
-
-  // offset assign
-  cudaMemcpy(&data_size, gpu_buffer+buf_offset, sizeof(uint64_t),
-             cudaMemcpyDefault);
-  buf_offset += sizeof(uint64_t);
-  deserialize_data<<<blocks, threads>>>(
-        gpu_buffer+buf_offset, shared_data->device_ptr(),
-        data_size);
-  buf_offset += sizeof(DataType)*offset_size;
-  printf("data size: %d\n", data_size);
-
-
-
-  //deserialize_data<<<blocks, threads>>>(gpu_buffer, num_received,
-  //                                      ctx->is_updated.gpu_wr_ptr(),
-  //                                      ctx->offsets.device_ptr(),
-  //                                      shared_data->device_ptr()); 
-
-  printf("deserialize done id %d\n", ctx->id);
-  /*
-  ctx->offsets.recv_mpi(num_shared);
-  ctx->is_updated.gpu_rd_ptr()->recv_mpi();
-  shared_data->recv_mpi(num_shared);
-  */
-
-  //ctx->offsets.recv_impi(num_shared, &cur_recv_req);
-  //MPI_Wait(&cur_recv_req, &cur_recv_stat);
-  //ctx->is_updated.gpu_rd_ptr()->recv_impi(&cur_recv_req);
-  //MPI_Wait(&cur_recv_req, &cur_recv_stat);
-  //shared_data->recv_impi(num_shared, &cur_recv_req);
-  //MPI_Wait(&cur_recv_req, &cur_recv_stat
-
-  /*
-  printf("Receive...\n");
-  if (offset_flag) {
-    *from_id = offset_recv_stat.MPI_SOURCE;
-    num_shared = shared->num_nodes[*from_id];
-    ctx->offsets.recv_impi(num_shared, 10000);
-    printf("offset received\n");
+  if (data_mode == noData) {
+    check_cuda_kernel;
+    //cudaFree(gpu_buffer);
+    return ;
   }
-  if (update_flag) {
-    *from_id = update_recv_stat.MPI_SOURCE;
-    num_shared = shared->num_nodes[*from_id];
-    ctx->is_updated.gpu_rd_ptr()->recv_impi(10001);
-    printf("isupdated received\n");
-  }
-  if (shared_flag) {
-    *from_id = shared_recv_stat.MPI_SOURCE;
-    
-    num_shared = shared->num_nodes[*from_id];
-    shared_data->recv_impi(num_shared, 10002);
-    printf("shared data received\n");
-  }
-  */
-  /*
+
+	//assert(data_mode != noData);
   if (data_mode != onlyData) {
-    // deserialize bit_set_count
-    memcpy(&bit_set_count, recv_buffer + offset, sizeof(bit_set_count));
+    cudaMemcpy(&bit_set_count, gpu_buffer + offset,
+               sizeof(bit_set_count), cudaMemcpyDefault);
     offset += sizeof(bit_set_count);
   } else {
     bit_set_count = num_shared;
-  }  
-  
-  assert(data_mode != gidsData); // not supported for deserialization on GPUs
+  }
+
+  assert(data_mode != gidsData);
   if (data_mode == offsetsData) {
-    // deserialize offsets vector
-    //offset += sizeof(bit_set_count);
-    //ctx->offsets.recv_mpi(bit_set_count);
-    //MPI_Recv(ctx->offsets, bit_set_count, MPI_CHAR, 0, 100, MPI_COMM_WORLD, &status);    
-    //ctx->offsets.copy_to_gpu((unsigned int*)(recv_buffer + offset), bit_set_count);
-    //offset += bit_set_count * sizeof(unsigned int);
+    offset += sizeof(bit_set_count);
+    /*deserialize_offsets<<<blocks, threads>>>(
+        gpu_buffer+offset, ctx->offsets.device_ptr(),
+        bit_set_count);
+        */
+    cudaMemcpy(ctx->offsets.device_ptr(),
+               gpu_buffer+offset, bit_set_count*sizeof(unsigned int),
+               cudaMemcpyDefault);
+    offset += bit_set_count * sizeof(unsigned int);
   } else if ((data_mode == bitsetData)) {
-    // deserialize bitset
-    ctx->is_updated.cpu_rd_ptr()->resize(num_shared);
-    //offset += sizeof(num_shared);
-    //size_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
-    //offset += sizeof(vec_size);
-    //MPI_Recv(ctx->is_updated.cpu_rd_ptr(), (num_shared + vec_size), MPI_CHAR, 0, 100, MPI_COMM_WORLD, &status);
-    //ctx->is_updated.cpu_rd_ptr()->recv_mpi();
-    //ctx->is_updated.cpu_rd_ptr()->copy_to_gpu((uint64_t*)(recv_buffer + offset));
-    //offset += vec_size * sizeof(uint64_t);
-    // get offsets
+    offset += sizeof(num_shared);
+    uint64_t vec_size = ctx->is_updated.cpu_rd_ptr()->vec_size();
+    offset += sizeof(vec_size);
+    //deserialize_isupdate<<<blocks, threads>>>(
+    //    gpu_buffer + offset, ctx->is_updated.gpu_wr_ptr()->get_vec(),
+    //    vec_size);
+    //cudaMemcpy(ctx->is_updated.gpu_wr_ptr(), gpu_buffer + offset,
+    //          sizeof(uint64_t) * vec_size, cudaMemcpyDefault);
+
+    cudaMemcpy(ctx->is_updated.gpu_wr_ptr()->get_vec(), gpu_buffer + offset,
+               sizeof(uint64_t) * vec_size, cudaMemcpyDefault);
+    //ctx->is_updated.gpu_wr_ptr()->copy_from_buffer(gpu_buffer + offset);
+    offset += sizeof(uint64_t) * vec_size;
     size_t v_size;
     get_offsets_from_bitset(num_shared,
                             ctx->offsets.device_ptr(),
                             ctx->is_updated.gpu_rd_ptr(), &v_size);
-
     assert(bit_set_count == v_size);
   }
 
-  // deserialize data vector
-  //offset += sizeof(bit_set_count);
-  //shared_data->recv_mpi(bit_set_count);
-  //MPI_Recv(shared_data, bit_set_count, MPI_CHAR, 0, 100, MPI_COMM_WORLD, &status);        
-  //shared_data->copy_to_gpu((DataType*)(recv_buffer + offset), bit_set_count);
-  //offset += bit_set_count * sizeof(DataType);
-  */
-  return num_shared;
+  offset += sizeof(bit_set_count);
+  cudaMemcpy(shared_data->device_ptr(), gpu_buffer+offset,
+             bit_set_count*sizeof(DataType), cudaMemcpyDefault);
+  /*
+  deserialize_data<<<blocks, threads>>>(
+      gpu_buffer + offset, shared_data->device_ptr(),
+      bit_set_count);
+      */
+
+  check_cuda_kernel;
+
+  printf("\tReceive == \n");
+  printf("\t\tThis ID: %d\n", ctx->id);
+  printf("\t\tTo ID: %d\n", from_id);
+  printf("\t\t# of received: %d\n", num_received);
+  printf("\t\tOffset size : %d\n", ctx->offsets.size());
+  printf("\t\tIsupdated size: %d\n", ctx->is_updated.gpu_rd_ptr()->vec_size());
+  printf("\t\tData size : %d\n", bit_set_count);
+  printf("\n");
 }
 
 template <typename DataType, SharedType sharedType, UpdateOp op>
 void batch_set_shared_field(struct CUDA_Context_Common* ctx,
                             struct CUDA_Context_Field<DataType>* field,
-                            unsigned dummy_id, uint8_t* recv_buffer,
+                            unsigned from_id, uint8_t* recv_buffer,
                             DataCommMode data_mode) {
-	//assert(data_mode != noData);
   struct CUDA_Context_Shared* shared;
   if (sharedType == sharedMaster) {
     shared = &ctx->master;
@@ -1058,14 +932,15 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
   // timer.start();
   // timer1.start();
   //deserializeMessage(ctx, data_mode, v_size, shared->num_nodes[from_id], shared_data, recv_buffer);
-  unsigned from_id;
   //size_t v_size = gpuDirectRecv(ctx, shared, shared_data, &from_id);
   
-  size_t v_size = gpuDirectRecv(ctx, shared, shared_data, &dummy_id);
+  size_t v_size;
+  gpuDirectRecv(ctx, data_mode, v_size, 
+                shared, shared_data, from_id);
+  if (data_mode == noData) { return ; }
   
   // timer1.stop();
   // timer2.start();
-  /*
   if (data_mode == onlyData) {
     if (op == setOp) {
       batch_set_subset<DataType, sharedType><<<blocks, threads>>>(
@@ -1098,35 +973,24 @@ void batch_set_shared_field(struct CUDA_Context_Common* ctx,
           field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
     }
   } else { // bitsetData || offsetsData */
- 
-  printf("from_node: %d, dummy id: %d, cur id: %d\n", from_id, dummy_id, ctx->id);
-  printf("shared size: %d\n", shared->nodes[dummy_id].size()); 
-  printf("v size: %d\n", v_size);
-  printf("offset size: %d\n", ctx->offsets.size());
-  printf("shared data size: %d\n", shared_data->size());
-  printf("field data size: %d\n", field->data.size());
-  printf("field updated size: %d\n", field->is_updated.cpu_rd_ptr()->vec_size());
-  if (op == setOp) {
-    std::cout << "set\n";
-    batch_set_subset<DataType, sharedType><<<blocks, threads>>>(
-        v_size, shared->nodes[from_id].device_ptr(),
-        ctx->offsets.device_ptr(), shared_data->device_ptr(),
-        field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
-  } else if (op == addOp) {
-    std::cout << "add\n";
-    batch_add_subset<DataType, sharedType><<<blocks, threads>>>(
-        v_size, shared->nodes[from_id].device_ptr(),
-        ctx->offsets.device_ptr(), shared_data->device_ptr(),
-        field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
-  } else if (op == minOp) {
-    batch_min_subset<DataType, sharedType><<<blocks, 1>>>(
-        v_size, shared->nodes[dummy_id].device_ptr(),
-        ctx->offsets.device_ptr(), shared_data->device_ptr(),
-        field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
+    if (op == setOp) {
+      batch_set_subset<DataType, sharedType><<<blocks, threads>>>(
+          v_size, shared->nodes[from_id].device_ptr(),
+          ctx->offsets.device_ptr(), shared_data->device_ptr(),
+          field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
+    } else if (op == addOp) {
+      batch_add_subset<DataType, sharedType><<<blocks, threads>>>(
+          v_size, shared->nodes[from_id].device_ptr(),
+          ctx->offsets.device_ptr(), shared_data->device_ptr(),
+          field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
+    } else if (op == minOp) {
+      batch_min_subset<DataType, sharedType><<<blocks, threads>>>(
+          v_size, shared->nodes[from_id].device_ptr(),
+          ctx->offsets.device_ptr(), shared_data->device_ptr(),
+          field->data.gpu_wr_ptr(), field->is_updated.gpu_wr_ptr());
+    }
   }
-  //}
   check_cuda_kernel;
-  printf("Done? %d\n", ctx->id);
   // timer2.stop();
   // timer.stop();
   // fprintf(stderr, "Set %u<-%u: %d mode Time (ms): %llu + %llu = %llu\n",

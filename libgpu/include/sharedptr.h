@@ -214,20 +214,17 @@ template <typename T>
 class DeviceOnly {
   T* ptr;
   size_t nmemb;
-  T max_val;
   MPI_Request send_req, recv_req;
 
 public:
   DeviceOnly() {
     ptr   = NULL;
     nmemb = 0;
-    max_val = std::numeric_limits<T>::max();
   }
 
   DeviceOnly(size_t nmemb) {
     ptr = NULL;
     alloc(nmemb);
-    max_val = std::numeric_limits<T>::max();
   }
 
   size_t size() const { return nmemb; }

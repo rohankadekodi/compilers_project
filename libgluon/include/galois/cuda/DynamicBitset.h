@@ -179,6 +179,8 @@ public:
                               vec_size() * sizeof(uint64_t),
                               cudaMemcpyDefault));
   }
+
+  uint64_t* get_vec() { return bit_vector; }
 };
 
 class DynamicBitsetIterator
